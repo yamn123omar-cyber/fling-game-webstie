@@ -5,6 +5,7 @@ import { icon } from '../icons.js';
 import { empty } from '../ui.js';
 import { tournamentCard, matchLine, statTiles, leaderRow } from '../cards.js';
 import { mountHero } from '../hero.js';
+import { setQuery } from '../router.js';
 
 export default {
     title: 'Fling Things and People tournaments',
@@ -148,9 +149,7 @@ export default {
         if (!first) $('.hero-stats', heroEl).outerHTML = String(statTiles(d.stats));
         const offs = [
             on(root, 'click', '[data-board] button', (e, b) => {
-                const u = new URL(location.href);
-                u.searchParams.set('board', b.dataset.v);
-                history.replaceState({}, '', u.pathname + u.search);
+                setQuery('board', b.dataset.v);
                 ctx.query.board = b.dataset.v;
                 ctx.reload();
             }),

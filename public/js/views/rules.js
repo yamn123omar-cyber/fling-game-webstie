@@ -1,6 +1,7 @@
 import { html, $ } from '../lib.js';
 import { get } from '../api.js';
 import { icon } from '../icons.js';
+import { currentUrl } from '../router.js';
 
 const pctOf = x => `${Math.round(x * 100)}%`;
 
@@ -114,8 +115,9 @@ export default {
         </div>`;
     },
     mount(root) {
-        if (location.hash) {
-            const el = $(location.hash, root);
+        const hash = currentUrl().hash || location.hash;
+        if (hash) {
+            const el = $(hash, root);
             if (el) setTimeout(() => el.scrollIntoView({ behavior: 'smooth' }), 50);
         }
     },

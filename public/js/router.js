@@ -31,17 +31,31 @@ function match(path) {
     return null;
 }
 
-export function navigate(url, { replace = false } = {}) {
-    if (replace) history.replaceState({}, '', url);
+// Embedded previews run in sandboxed frames that may not allow touching the
+// address bar, so they set window.__FTAP_MEMORY_ROUTER__ and keep the URL in memory.
+const memoryMode = Boolean(window.__FTAP_MEMORY_ROUTER__);
+let memoryUrl = new URL('/', 'https://preview.local');
+
+export function currentUrl() {
+    return memoryMode ? new URL(memoryUrl.href) : new URL(location.href);
+}
+
+function writeUrl(url, replace) {
+    if (memoryMode) memoryUrl = new URL(url, memoryUrl);
+    else if (replace) history.replaceState({}, '', url);
     else history.pushState({}, '', url);
+}
+
+export function navigate(url, { replace = false } = {}) {
+    writeUrl(url, replace);
     render();
 }
 
 export function setQuery(key, value) {
-    const u = new URL(location.href);
+    const u = currentUrl();
     if (value === null || value === undefined || value === '') u.searchParams.delete(key);
     else u.searchParams.set(key, value);
-    history.replaceState({}, '', u.pathname + u.search);
+    writeUrl(u.pathname + u.search, true);
 }
 
 function startProgress() {
@@ -63,7 +77,7 @@ const root = () => document.getElementById('view');
 
 async function render() {
     const token = ++navToken;
-    const url = new URL(location.href);
+    const url = currentUrl();
     const found = match(url.pathname);
     if (current && current.cleanup) { try { current.cleanup({ leaving: true }); } catch (e) { console.error(e); } }
     if (current) for (const off of current.offs) off();
@@ -182,7 +196,7 @@ function show404(msg) {
     document.title = 'Not found · FTAP Arena';
 }
 function showError(msg) {
-    root().innerHTML = String(html`<div class="wrap page">${empty('alert', 'Something went wrong', msg, html`<a class="btn" href="${location.pathname}">Try again</a>`)}</div>`);
+    root().innerHTML = String(html`<div class="wrap page">${empty('alert', 'Something went wrong', msg, html`<a class="btn" href="${currentUrl().pathname}">Try again</a>`)}</div>`);
 }
 
 export function start() {
@@ -192,22 +206,25 @@ export function start() {
         const href = a.getAttribute('href');
         if (!href || !href.startsWith('/') || href.startsWith('//') || a.target === '_blank' || a.hasAttribute('download') || href.startsWith('/api/')) return;
         e.preventDefault();
-        if (href === location.pathname + location.search) { current && current.ctx.reload && current.ctx.reload(); return; }
+        const here = currentUrl();
+        if (href === here.pathname + here.search) { current && current.ctx.reload && current.ctx.reload(); return; }
         navigate(href);
     });
     // Jumping to #anchors fires popstate too; only re-render when the page itself changed.
-    let lastPage = location.pathname + location.search;
-    window.addEventListener('popstate', () => {
-        const page = location.pathname + location.search;
-        if (page === lastPage && location.hash) return;
-        lastPage = page;
-        render();
-    });
-    store.on('route', () => { lastPage = location.pathname + location.search; });
+    if (!memoryMode) {
+        let lastPage = location.pathname + location.search;
+        window.addEventListener('popstate', () => {
+            const page = location.pathname + location.search;
+            if (page === lastPage && location.hash) return;
+            lastPage = page;
+            render();
+        });
+        store.on('route', () => { lastPage = location.pathname + location.search; });
+    }
     setInterval(() => tickTimes(document), 1000);
     render();
 }
 
-export const currentPath = () => location.pathname;
+export const currentPath = () => currentUrl().pathname;
 export const refresh = () => render();
 export { icon };
