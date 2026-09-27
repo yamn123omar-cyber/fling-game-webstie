@@ -151,17 +151,21 @@ router.get('/admin/discord', route(() => discord.status()));
 
 router.post('/admin/discord/rebuild', route(req => {
     if (req.body.confirm !== 'DELETE EVERYTHING') throw bad('Type DELETE EVERYTHING to confirm');
-    discord.startRebuild(req.user);
+    try { discord.startRebuild(req.user); } catch (e) { throw bad(e.message); }
     return discord.status();
 }));
 
 router.post('/admin/discord/import', route(async () => {
-    const n = await discord.importLegacyAccounts();
-    return { imported: n };
+    try {
+        return { imported: await discord.importLegacyAccounts() };
+    } catch (e) {
+        throw new HttpError(502, `Couldn't read the old accounts: ${e.message}`);
+    }
 }));
 
 router.post('/admin/discord/sync', route(() => {
     discord.requestFullSync();
+    discord.drain(true).catch(e => console.warn('[discord] sync:', e.message));
     return discord.status();
 }));
 

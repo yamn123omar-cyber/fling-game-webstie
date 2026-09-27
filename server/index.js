@@ -50,7 +50,7 @@ rt.onPresence((userId, online) => {
 
 async function boot() {
     const hadLocal = db.load();
-    if (!hadLocal && discord.backupEnabled()) {
+    if (!hadLocal && discord.canRestore()) {
         try {
             const restored = await discord.downloadLatestBackup();
             if (restored) {
@@ -70,17 +70,17 @@ async function boot() {
     setInterval(() => T.tick(), 5000).unref();
     T.tick();
 
-    // Off-site backup every few minutes when something changed.
+    // Off-site backup every few minutes when something changed, and keep the
+    // Discord database channels up to date.
     let changedSinceBackup = false;
     db.onFlush(() => { changedSinceBackup = true; });
     const backupEvery = Number(process.env.BACKUP_INTERVAL_MINUTES || 5) * 60_000;
-    if (discord.backupEnabled()) {
-        setInterval(async () => {
-            if (!changedSinceBackup) return;
-            changedSinceBackup = false;
-            try { await discord.uploadBackup(db.data); } catch (e) { changedSinceBackup = true; console.error('[backup]', e.message); }
-        }, backupEvery).unref();
-    }
+    setInterval(async () => {
+        if (!changedSinceBackup || !discord.backupEnabled()) return;
+        changedSinceBackup = false;
+        try { await discord.uploadBackup(db.data); } catch (e) { changedSinceBackup = true; console.error('[backup]', e.message); }
+    }, backupEvery).unref();
+    discord.startSyncLoop();
 
     let closing = false;
     const shutdown = async signal => {

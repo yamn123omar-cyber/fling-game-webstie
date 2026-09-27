@@ -190,7 +190,7 @@ function publish(t) {
     t.status = 'registration';
     t.publishedAt = nowIso();
     chat.system(`tour:${t.id}`, `Registration is open! The tournament starts ${tok(t.startAt)}.`);
-    discord.announce(`🏆 **${t.name}** is open for registration — ${t.mode === 'duo' ? 'Duo' : 'Solo'}, starts <t:${Math.floor(new Date(t.startAt).getTime() / 1000)}:F>`);
+    discord.announce('announcements', `🏆 **${t.name}** is open for registration — ${t.mode === 'duo' ? 'Duo' : 'Solo'}, starts <t:${Math.floor(new Date(t.startAt).getTime() / 1000)}:F>`);
     db.save();
     emitT(t);
 }
@@ -363,7 +363,7 @@ function startTournament(t) {
         users.notify(uid, { type: 'tournament', text: `${t.name} has started! You are seed #${e.seed}.`, link: `/t/${t.id}` });
     }
     chat.system(`tour:${t.id}`, `The tournament is live with ${kept.length} ${t.mode === 'duo' ? 'teams' : 'players'}. Good luck!`);
-    discord.announce(`🔴 **${t.name}** is live — ${kept.length} ${t.mode === 'duo' ? 'teams' : 'players'}`);
+    discord.announce('announcements', `🔴 **${t.name}** is live — ${kept.length} ${t.mode === 'duo' ? 'teams' : 'players'}`);
 
     const ready = bracket.resolve(matchesOf(t), isDqFn(t));
     scheduleReady(t, ready);
@@ -567,7 +567,7 @@ function finishMatch(t, m, winnerSide, type, note) {
         for (const uid of e.members) users.notify(uid, { type: 'result', text: txt, link: `/m/${m.id}` });
     }
     if (type === 'played') {
-        discord.announce(`⚔️ ${t.name} · ${m.label}: **${entryName(winnerSide === 0 ? A : B)}** beat ${entryName(winnerSide === 0 ? B : A)} ${Math.max(...score)}–${Math.min(...score)}`);
+        discord.announce('results', `⚔️ ${t.name} · ${m.label}: **${entryName(winnerSide === 0 ? A : B)}** beat ${entryName(winnerSide === 0 ? B : A)} ${Math.max(...score)}–${Math.min(...score)}`);
     }
 
     emitM(m);
@@ -616,7 +616,7 @@ function checkComplete(t) {
     t.completedAt = nowIso();
     t.championEntryId = champ ? champ.id : null;
     chat.system(`tour:${t.id}`, champ ? `🏆 ${champ.name} are the champions of ${t.name}!` : `${t.name} is over.`);
-    if (champ) discord.announce(`🏆 **${champ.name}** won **${t.name}**!`);
+    if (champ) discord.announce('announcements', `👑 **${champ.name}** won **${t.name}**!`);
 }
 
 function revertCompletion(t) {

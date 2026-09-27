@@ -48,9 +48,10 @@ function makeUser(username, extra = {}) {
     return u;
 }
 
-const admin = makeUser('arena_admin', { role: 'admin', displayName: 'Arena Admin', title: 'Tournament organizer', accent: '#c4ff4d', banner: 'grid', bio: 'I run the brackets. Ping me in Discord if something breaks.' });
-const ref1 = makeUser('RefRaptor', { role: 'ref', title: 'Head referee', accent: '#4dd8ff', banner: 'ocean', bio: 'Counting flings since 2021.' });
-const ref2 = makeUser('WhistleWendy', { role: 'ref', accent: '#9b7bff', banner: 'grape', title: 'Referee' });
+const OWNER = process.env.OWNER_USERNAME || 'okok_0020';
+const admin = makeUser(OWNER, { role: 'owner', displayName: 'Owner', title: 'Runs FTAP Arena', accent: '#c4ff4d', banner: 'grid', bio: 'I run the brackets. Ping me in Discord if something breaks.' });
+const ref1 = makeUser('RefRaptor', { role: 'admin', title: 'Head admin', accent: '#4dd8ff', banner: 'ocean', bio: 'Counting flings since 2021.' });
+const ref2 = makeUser('WhistleWendy', { role: 'admin', accent: '#9b7bff', banner: 'grape', title: 'Admin' });
 
 const names = [
     ['NoobSlinger', 'Certified yeeter', '#c4ff4d', 'toxic', 'I will throw you into the void.'],
@@ -87,7 +88,8 @@ const teamDefs = [
     ['Pixel Party', 'PXL', '#ff5ea8', 9, 13],
 ];
 const teams = teamDefs.map(([name, tag, color, a, b]) => {
-    const t = { id: db.id('tm'), name, tag, color, captainId: players[a].id, members: [players[a].id, players[b].id], createdAt: new Date(Date.now() - rand() * 60 * 864e5).toISOString() };
+    const created = new Date(Date.now() - rand() * 60 * 864e5).toISOString();
+    const t = { id: db.id('tm'), name, tag, color, captainId: players[a].id, members: [players[a].id, players[b].id], createdAt: created, history: [{ userId: players[a].id, action: 'created', at: created }, { userId: players[b].id, action: 'joined', at: created }] };
     db.data.teams[t.id] = t;
     befriend(players[a], players[b]);
     chat.post(`team:${t.id}`, { userId: players[a].id, text: 'gg last night, scrims tomorrow?' });
@@ -141,11 +143,12 @@ const scheduled = t => matchesOf(t).filter(m => m.status === 'scheduled');
 
 // 1) Finished solo tournament (single elimination, 8 players)
 const t1 = T.createTournament({
-    name: 'Friday Night Flings #1', mode: 'solo', format: 'single', maxEntrants: 8, prize: '500 Robux', accent: '#ff5ea8',
+    name: 'Friday Night Flings #1', mode: 'solo', maxEntrants: 8, prizes: { first: '500 Robux', second: '250 Robux', third: '100 Robux' }, accent: '#ff5ea8',
     startAt: inFuture(3), publish: true,
     description: 'The very first FTAP Arena cup. Eight flingers, one crown.',
     settings: { checkinMinutes: 0, bestOf: 3, finalBestOf: 3, firstTo: 5 },
 }, admin);
+T.setStaff(t1, [admin.id, ref1.id, ref2.id], admin);
 for (const p of players.slice(0, 8)) T.register(t1, p, {});
 T.startTournament(t1);
 let guard = 0;
@@ -157,12 +160,13 @@ chat.post(`tour:${t1.id}`, { userId: players[2].id, text: 'rematch next week �
 
 // 2) Live duo tournament (double elimination, 6 teams + 1 team of 1)
 const t2 = T.createTournament({
-    name: 'Duo Dash Cup', mode: 'duo', format: 'double', maxEntrants: 16, prize: '1,000 Robux', accent: '#4dd8ff',
+    name: 'Duo Dash Cup', mode: 'duo', maxEntrants: 16, prizes: { first: '1,000 Robux', second: '400 Robux', third: '150 Robux' }, accent: '#4dd8ff',
     startAt: inFuture(3), publish: true,
-    description: 'Double elimination duos. Lose twice and you are out. Teams of 1 welcome — good luck carrying.',
+    description: 'Duos on the classic two-sided bracket. Lose in an odd round and you get a second chance to fight your way back in. Teams of 1 welcome — good luck carrying.',
     rules: 'Public servers only. Host shares the server in the match room.',
     settings: { checkinMinutes: 0, firstTo: 5, allowSoloTeams: true, drawRule: 'duels' },
 }, admin);
+T.setStaff(t2, [admin.id, ref1.id, ref2.id], admin);
 for (const tm of teams.slice(0, 6)) T.register(t2, users.get(tm.members[0]), { teamId: tm.id });
 T.register(t2, players[15], { solo: true });
 T.startTournament(t2);
@@ -181,20 +185,22 @@ chat.post(`tour:${t2.id}`, { userId: ref1.id, text: 'Refs are on it. Check in on
 
 // 3) + 4) Open tournaments
 const t3 = T.createTournament({
-    name: 'Sunday Showdown', mode: 'solo', format: 'double', maxEntrants: 32, accent: '#c4ff4d',
+    name: 'Sunday Showdown', mode: 'solo', maxEntrants: 32, accent: '#c4ff4d', prizes: { first: '300 Robux', second: '', third: '' },
     startAt: inFuture(60 * 48 + 17), publish: true,
-    description: 'Solo double elimination. Best of 3 duels, best of 5 in the grand final.',
+    description: 'Solo, two-sided bracket with second chances. Best of 3 duels, best of 5 in the final.',
     settings: { bestOf: 3, finalBestOf: 5 },
 }, admin);
 for (const p of players.slice(2, 13)) T.register(t3, p, {});
 const t4 = T.createTournament({
-    name: 'Ragdoll Royale', mode: 'duo', format: 'single', maxEntrants: 16, prize: '2,500 Robux', accent: '#ffb84d',
+    name: 'Ragdoll Royale', mode: 'duo', maxEntrants: 16, prizes: { first: '2,500 Robux', second: '1,000 Robux', third: '500 Robux' }, accent: '#ffb84d',
     startAt: inFuture(60 * 24 * 5 + 3), publish: true,
     description: 'The biggest duo event of the season. Draws at 1–1 are settled on total kills first.',
     settings: { thirdPlaceMatch: true, drawRule: 'kills' },
 }, admin);
 for (const tm of teams.slice(1, 5)) T.register(t4, users.get(tm.members[1]), { teamId: tm.id });
-T.createTournament({ name: 'Winter Brawl (draft)', mode: 'solo', format: 'single', startAt: inFuture(60 * 24 * 20) }, admin);
+T.setStaff(t3, [admin.id, ref2.id], admin);
+T.addBots(t3, admin, 3);
+T.createTournament({ name: 'Winter Brawl (draft)', mode: 'solo', startAt: inFuture(60 * 24 * 20) }, admin);
 
 // Everyone was online recently
 for (const u of everyone) u.lastSeenAt = new Date(Date.now() - rand() * 3 * 864e5).toISOString();
@@ -202,5 +208,5 @@ db.save();
 db.flush();
 
 console.log(`Seeded ${everyone.length} users, ${Object.keys(db.data.teams).length} teams, ${Object.keys(db.data.tournaments).length} tournaments → ${FILE}`);
-console.log(`Log in as "arena_admin", "RefRaptor" or any player (e.g. "NoobSlinger") with password "${PASSWORD}".`);
+console.log(`Log in as "${OWNER}" (owner), "RefRaptor" (admin) or any player (e.g. "NoobSlinger") with password "${PASSWORD}".`);
 
