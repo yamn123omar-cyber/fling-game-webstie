@@ -105,9 +105,10 @@ function post(channelId, { userId = null, text, kind = 'user', meta = null }) {
     const cap = channelId.startsWith('match:') ? cfg.chat.matchHistory : cfg.chat.historyPerChannel;
     if (list.length > cap) list.splice(0, list.length - cap);
     db.save();
+    const author = userId ? require('./users').summary(db.data.users[userId]) : null;
     const who = audience(channelId);
-    if (who === null) rt.broadcast('message', { channelId, message: msg });
-    else rt.toUsers(who, 'message', { channelId, message: msg });
+    if (who === null) rt.broadcast('message', { channelId, message: msg, author });
+    else rt.toUsers(who, 'message', { channelId, message: msg, author });
     return msg;
 }
 
@@ -125,7 +126,7 @@ function unread(userId, channelId) {
     for (let i = list.length - 1; i >= 0; i--) {
         const m = list[i];
         if (m.at <= since) break;
-        if (m.userId !== userId) n++;
+        if (m.kind === 'user' && m.userId !== userId) n++;
     }
     return n;
 }

@@ -1025,7 +1025,7 @@ function matchesForUser(uid, { includeDone = false } = {}) {
             if (m.result && ['bye', 'skipped'].includes(m.result.type)) continue;
             if (m.status === 'pending') continue;
             if (!includeDone && m.status === 'done') continue;
-            out.push({ ...matchCompact(m), tournament: { id: t.id, name: t.name, mode: t.mode, accent: t.accent }, mySide: m.slots.findIndex(s => s.entryId === e.id), entries: m.slots.map(s => (entryOf(t, s.entryId) ? entryView(t, entryOf(t, s.entryId)) : null)) });
+            out.push({ ...matchCompact(m), deadlineAt: m.scheduledAt ? iso(deadlineAt(t, m)) : null, checkedIn: Boolean((m.checkins || {})[uid]), tournament: { id: t.id, name: t.name, mode: t.mode, accent: t.accent }, mySide: m.slots.findIndex(s => s.entryId === e.id), entries: m.slots.map(s => (entryOf(t, s.entryId) ? entryView(t, entryOf(t, s.entryId)) : null)) });
         }
     }
     out.sort((a, b) => (a.scheduledAt || '').localeCompare(b.scheduledAt || ''));

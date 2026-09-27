@@ -6,9 +6,8 @@ const users = require('../users');
 const rating = require('../rating');
 const rt = require('../realtime');
 const T = require('../tournaments');
-const duelsLib = require('../duels');
 const { requireAuth, requireRole, hasRole } = require('../auth');
-const { route, bad, HttpError } = require('../errors');
+const { route, HttpError } = require('../errors');
 
 const router = express.Router();
 

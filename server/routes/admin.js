@@ -85,7 +85,7 @@ router.post('/admin/users/:id/roblox', route(async req => {
 }));
 
 router.get('/admin/export', route((req, res) => {
-    const { sessions, ...rest } = db.data;
+    const { sessions: _omit, ...rest } = db.data; // never export session tokens
     const clean = { ...rest, users: Object.fromEntries(Object.entries(rest.users).map(([k, u]) => [k, { ...u, passwordHash: undefined }])) };
     res.setHeader('Content-Disposition', `attachment; filename="ftap-export-${new Date().toISOString().slice(0, 10)}.json"`);
     res.json(clean);
