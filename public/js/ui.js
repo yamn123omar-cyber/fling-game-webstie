@@ -40,8 +40,11 @@ document.addEventListener('error', e => {
 }, true);
 
 export function roleTag(u) {
-    if (!u || !u.role || u.role === 'player') return '';
-    return u.role === 'admin' ? html`<span class="role-tag" title="Organizer">ORG</span>` : html`<span class="role-tag ref" title="Referee">REF</span>`;
+    if (!u) return '';
+    if (u.isBot) return html`<span class="role-tag bot" title="Test bot">BOT</span>`;
+    if (u.role === 'owner') return html`<span class="role-tag" title="Owner">OWNER</span>`;
+    if (u.role === 'admin' || u.role === 'ref') return html`<span class="role-tag ref" title="Admin">ADMIN</span>`;
+    return '';
 }
 
 export function userChip(u, { size = 'sm', sub = null, link = true, online = true } = {}) {
@@ -75,7 +78,7 @@ export const tStatus = s => {
 export const MATCH_STATUS = {
     pending: ['Waiting', ''],
     scheduled: ['Check-in', 'checkin'],
-    ready: ['Needs ref', 'ready'],
+    ready: ['Needs admin', 'ready'],
     live: ['Live', 'live'],
     done: ['Final', 'done'],
 };
@@ -87,7 +90,7 @@ export const mStatus = s => {
 export const modeChip = mode => (mode === 'duo'
     ? html`<span class="chip blue">${icon('users')}Duo 2v2</span>`
     : html`<span class="chip pink">${icon('user')}Solo 1v1</span>`);
-export const formatLabel = f => (f === 'double' ? 'Double elimination' : 'Single elimination');
+export const formatLabel = f => (f === 'twosided' ? 'Two-sided bracket' : f === 'double' ? 'Double elimination' : 'Single elimination');
 
 export function empty(iconName, title, text = '', action = '') {
     return html`<div class="empty">${icon(iconName)}<b>${title}</b>${text ? html`<span>${text}</span>` : ''}${action}</div>`;

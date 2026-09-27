@@ -5,7 +5,7 @@ import { navigate, setQuery } from '../router.js';
 import { icon } from '../icons.js';
 import { avatar, toast, withBusy, confirm, modal, bannerClass } from '../ui.js';
 
-const ACCENTS = ['#c4ff4d', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
+const ACCENTS = ['#818cf8', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
 const BANNERS = ['aurora', 'ember', 'ocean', 'toxic', 'grape', 'sunset', 'mono', 'grid'];
 const SOCIALS = [['youtube', 'YouTube', '@channel or link'], ['twitch', 'Twitch', 'username'], ['tiktok', 'TikTok', '@handle'], ['twitter', 'X / Twitter', '@handle'], ['discord', 'Discord', 'username']];
 
@@ -29,6 +29,9 @@ function profileTab(u) {
                 <input type="hidden" name="favoriteMode" value="${u.profile.favoriteMode}"></div>
             <div class="field"><span>Socials</span>
                 <div class="form-grid">${SOCIALS.map(([k, l, ph]) => html`<label class="field"><small>${l}</small><input class="input" name="s_${k}" maxlength="80" placeholder="${ph}" value="${(u.profile.socials || {})[k] || ''}"></label>`)}</div></div>
+            <div class="field"><span>Privacy — who can see…</span>
+                <div class="form-grid">${[['bio', 'Your bio'], ['stats', 'Your stats & rating'], ['history', 'Match history, opponents & past teams']].map(([k, l]) => html`<label class="field"><small>${l}</small>
+                    <select class="select" name="p_${k}">${[['public', 'Everyone'], ['friends', 'Friends only'], ['private', 'Only me']].map(([v, t]) => html`<option value="${v}" ${((u.profile.privacy || {})[k] || 'public') === v ? 'selected' : ''}>${t}</option>`)}</select></label>`)}</div></div>
             <div class="form-error"></div>
             <div class="row"><button class="btn primary lg" type="submit">${icon('check')}Save profile</button><a class="btn ghost" href="/u/${encodeURIComponent(u.username)}">View profile</a></div>
         </form>
@@ -48,7 +51,7 @@ function profileTab(u) {
 }
 
 function robloxTab(u, ctx) {
-    const welcome = ctx.query.welcome ? html`<div class="banner-note accent-note">${icon('bolt')}<span><b>Welcome to FTAP Arena!</b> Linking Roblox is optional, but refs need your in-game name and your avatar shows up on your profile. You can do this later.</span><a class="btn sm" href="/tournaments">Skip for now</a></div>` : '';
+    const welcome = ctx.query.welcome ? html`<div class="banner-note accent-note">${icon('bolt')}<span><b>Welcome!</b> Linking Roblox is optional, but admins need your in-game name and your avatar shows up on your profile. You can do this later.</span><a class="btn sm" href="/tournaments">Skip for now</a></div>` : '';
     if (u.roblox) {
         return html`${welcome}<div class="card rbx-linked">
             <img class="rbx-head" src="/api/roblox/avatar/${u.roblox.id}" alt="">
@@ -154,7 +157,7 @@ export default {
                     btn && btn.classList.add('loading');
                     if (f.dataset.form === 'profile') {
                         const socials = Object.fromEntries(SOCIALS.map(([k]) => [k, f[`s_${k}`].value.trim()]));
-                        const res = await patch('/me/profile', { displayName: f.displayName.value.trim(), title: f.title.value, bio: f.bio.value, accent: f.accent.value, banner: f.banner.value, favoriteMode: f.favoriteMode.value, socials });
+                        const res = await patch('/me/profile', { displayName: f.displayName.value.trim(), title: f.title.value, bio: f.bio.value, accent: f.accent.value, banner: f.banner.value, favoriteMode: f.favoriteMode.value, socials, privacy: { bio: f.p_bio.value, stats: f.p_stats.value, history: f.p_history.value } });
                         store.me = res.user; store.emit('me', res.user);
                         toast('Profile saved.');
                     }

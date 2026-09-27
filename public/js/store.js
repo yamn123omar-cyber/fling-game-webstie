@@ -52,8 +52,9 @@ export const store = {
         } catch { /* ignore */ }
     },
 
-    isStaff() { return Boolean(this.me && (this.me.role === 'ref' || this.me.role === 'admin')); },
-    isAdmin() { return Boolean(this.me && this.me.role === 'admin'); },
+    isStaff() { return Boolean(this.me && ['ref', 'admin', 'owner'].includes(this.me.role)); },
+    isAdmin() { return this.isStaff(); },
+    isOwner() { return Boolean(this.me && this.me.role === 'owner'); },
 };
 
 let source = null;

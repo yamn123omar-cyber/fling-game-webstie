@@ -3,7 +3,7 @@ import { get, post, del } from '../api.js';
 import { store } from '../store.js';
 import { navigate, setQuery } from '../router.js';
 import { icon } from '../icons.js';
-import { tStatus, modeChip, formatLabel, entryChip, empty, modal, confirm, toast, toastError, withBusy, tier } from '../ui.js';
+import { tStatus, modeChip, formatLabel, entryChip, userChip, empty, modal, confirm, toast, toastError, withBusy, tier } from '../ui.js';
 import { renderBracket, mountBracket } from '../bracket.js';
 import { mountChat } from '../chat.js';
 import { matchLine } from '../cards.js';
@@ -36,6 +36,11 @@ function heroAction(t) {
             ${v.canWithdraw ? html`<button class="btn ghost sm" data-act="withdraw">Withdraw</button>` : ''}
         </div>`;
     }
+    if (v.isStaffMember) {
+        return html`<div class="t-cta"><span class="chip accent" style="align-self:flex-start">${icon('shield')}You're an admin here</span>
+            <span class="dim">Admins run the tournament and enter the scores, so they can't play in it.</span>
+            ${t.status === 'live' ? html`<a class="btn primary block" href="/admin">${icon('whistle')}Matches to score</a>` : ''}</div>`;
+    }
     if (v.canRegister) {
         return html`<div class="t-cta">
             <button class="btn primary lg block" data-act="register">${icon('plus')}Register${t.mode === 'duo' ? ' your duo' : ''}</button>
@@ -59,8 +64,12 @@ function heroAction(t) {
 
 function adminBar(t) {
     if (!t.viewer.isAdmin) return '';
+    const before = ['draft', 'registration', 'checkin'].includes(t.status);
     return html`<div class="admin-bar">
-        <span class="chip">${icon('shield')}Organizer tools</span>
+        <span class="chip">${icon('shield')}Admin tools</span>
+        <button class="btn sm" data-act="staff">${icon('users')}Admins (${t.staff.length})</button>
+        ${before && t.status !== 'draft' ? html`<button class="btn sm" data-act="force">${icon('userPlus')}Add player</button>
+            <button class="btn sm" data-act="bots">${icon('robot')}Add bots</button>` : ''}
         ${['draft', 'registration', 'checkin'].includes(t.status) ? html`<a class="btn sm" href="/admin/tournaments/${t.id}">${icon('edit')}Edit</a>` : ''}
         ${t.status === 'draft' ? html`<button class="btn sm primary" data-act="publish">${icon('upload')}Publish</button>` : ''}
         ${['registration', 'checkin'].includes(t.status) ? html`<button class="btn sm" data-act="start">${icon('play')}Start now</button>` : ''}
@@ -93,7 +102,7 @@ function overview(t) {
                                <div>${icon('dice')}<b>${s.drawRule === 'kills' ? 'Kills, then decider' : 'Decider on 1–1'}</b><span>${s.drawRule === 'kills' ? 'At 1–1 the side with more total kills wins; if that is tied too, a random decider duel.' : 'The system randomly picks two players who haven\'t fought yet. Winner takes the match.'}</span></div>
                                <div>${icon('user')}<b>${s.allowSoloTeams ? 'Teams of 1 allowed' : 'Full teams only'}</b><span>${s.allowSoloTeams ? 'Solo entries fight both duels, gain less and lose more.' : 'Both teammates must be registered.'}</span></div>`}
                     <div>${icon('clock')}<b>Check in or forfeit</b><span>Match check-in opens ${s.matchCheckinMinutes} min before; after ${s.noShowGraceMinutes} min late you forfeit.</span></div>
-                    <div>${icon('whistle')}<b>Referee scored</b><span>A ref watches in-game and records every duel. Players can't enter scores.</span></div>
+                    <div>${icon('whistle')}<b>Admin scored</b><span>An admin watches in-game and records every duel. Players can't enter scores.</span></div>
                     ${s.requireRoblox ? html`<div>${icon('lock')}<b>Verified Roblox required</b><span>Link your Roblox in Settings before registering.</span></div>` : ''}
                 </div>
                 <a class="more-link" href="/rules">Full rules & scoring →</a>
@@ -113,11 +122,18 @@ function overview(t) {
                 <h3 style="margin-bottom:12px">Details</h3>
                 <dl class="facts">
                     <dt>Mode</dt><dd>${t.mode === 'duo' ? 'Duo (2v2 as two 1v1s)' : 'Solo 1v1'}</dd>
-                    <dt>Format</dt><dd>${formatLabel(t.format)}${t.format === 'double' && s.grandFinalReset ? ' · final reset' : ''}${t.format === 'single' && s.thirdPlaceMatch ? ' · 3rd place match' : ''}</dd>
+                    <dt>Format</dt><dd>${formatLabel(t.format)}${t.format === 'twosided' && s.secondChances !== false ? ' · losers bracket' : ''}${t.format === 'double' && s.grandFinalReset ? ' · final reset' : ''}${t.format !== 'double' && s.thirdPlaceMatch ? ' · 3rd place match' : ''}</dd>
                     <dt>Seeding</dt><dd>By Elo rating</dd>
                     <dt>Entrants</dt><dd>${t.entrantCount} / ${t.maxEntrants}</dd>
-                    ${t.prize ? html`<dt>Prize</dt><dd style="color:var(--gold)">${t.prize}</dd>` : ''}
                 </dl>
+            </div>
+            ${t.prizes && (t.prizes.first || t.prizes.second || t.prizes.third) ? html`<div class="card">
+                <h3 style="margin-bottom:12px">Prizes</h3>
+                <div class="prize-list">${[['1st', t.prizes.first, 'gold'], ['2nd', t.prizes.second, 'silver'], ['3rd', t.prizes.third, 'bronze']].filter(x => x[1]).map(([k, v, c]) => html`<div class="prize ${c}">${icon('medal')}<b>${k}</b><span>${v}</span></div>`)}</div>
+            </div>` : ''}
+            <div class="card">
+                <h3 style="margin-bottom:12px">Admins</h3>
+                <div class="list">${t.staff.map(u => html`<div class="list-item">${userChip(u, { sub: u.role === 'owner' ? 'Owner' : 'Admin' })}</div>`)}</div>
             </div>
         </div>
     </div>`;
@@ -148,7 +164,7 @@ function matchesTab(t) {
     if (!real.length) return html`<div class="card">${empty('swords', 'No matches yet', t.status === 'live' ? 'Matches appear as soon as both sides are known.' : 'The bracket is generated when the tournament starts.')}</div>`;
     const groups = [
         ['Live', real.filter(m => m.status === 'live')],
-        ['Waiting for a referee', real.filter(m => m.status === 'ready')],
+        ['Waiting for an admin', real.filter(m => m.status === 'ready')],
         ['Check-in', real.filter(m => m.status === 'scheduled').sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))],
         ['Finished', real.filter(m => m.status === 'done').reverse()],
     ].filter(g => g[1].length);
@@ -204,7 +220,7 @@ export default {
         if (!tabs.some(x => x[0] === tab)) tab = 'overview';
         const counts = { entrants: t.entries.length, matches: t.matches.filter(m => m.status === 'live').length || '' };
 
-        return html`<div class="t-page" style="--ta:${t.accent || '#c4ff4d'}">
+        return html`<div class="t-page" style="--ta:${t.accent || '#818cf8'}">
             <section class="t-hero">
                 <div class="t-hero-bg"></div>
                 <div class="wrap t-hero-inner">
@@ -242,7 +258,11 @@ export default {
         const t = d.tournament;
         const tab = ctx.query.tab || (t.status === 'live' ? 'bracket' : 'overview');
         let stopBracket = null;
-        if (tab === 'bracket' && t.matches.length) stopBracket = mountBracket($('.t-tab', root), t);
+        if (tab === 'bracket' && t.matches.length) {
+            stopBracket = mountBracket($('.t-tab', root), t);
+            const sc = $('.ts-scroll', root);
+            if (sc && !ctx._centered) { sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2; ctx._centered = true; }
+        }
         let chat = null;
         if (tab === 'chat') {
             chat = mountChat($('.chat-slot', root), `tour:${t.id}`, { height: '560px', placeholder: store.me ? 'Talk to other players…' : 'Log in to chat', title: html`${icon('hash')}<b>${t.name}</b><span class="dim">lobby</span>` });
@@ -257,6 +277,40 @@ export default {
             if (a === 'withdraw' && await confirm('Withdraw from this tournament?', 'Your spot will be released.', { yes: 'Withdraw', danger: true })) {
                 if (await withBusy(el, () => post(`/tournaments/${t.id}/withdraw`))) { toast('Withdrawn.'); ctx.reload(); }
             }
+            if (a === 'staff') {
+                const { admins } = await get('/staff-candidates');
+                const cur = new Set(t.staff.map(u => u.id));
+                const playing = new Set(t.entries.flatMap(e => e.members.map(m => m.id)));
+                const res = await modal({
+                    title: 'Admins of this tournament', text: 'Admins can score matches, add players and start or cancel it. They can\'t play in it. The owner can make more people admin in the Owner panel.',
+                    body: html`<div class="pick-list">${admins.map(u => html`<label class="pick ${playing.has(u.id) ? 'disabled' : ''}"><input type="checkbox" value="${u.id}" ${cur.has(u.id) ? 'checked' : ''} ${playing.has(u.id) ? 'disabled' : ''}>
+                        <span class="pick-body">${userChip(u, { link: false, sub: playing.has(u.id) ? 'Playing in this tournament' : u.role === 'owner' ? 'Owner' : 'Admin' })}</span></label>`)}</div><div class="form-error"></div>`,
+                    actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Save', cls: 'primary', handler: m => post(`/tournaments/${t.id}/staff`, { userIds: [...m.querySelectorAll('input:checked')].map(i => i.value) }) }],
+                });
+                if (res) { toast('Admins updated.'); ctx.reload(); }
+            }
+            if (a === 'force') {
+                const res = await modal({
+                    title: 'Add a player', text: t.mode === 'duo' ? 'They join with their full team if they have one, otherwise as a team of 1. They are checked in automatically.' : 'They are registered and checked in right away.',
+                    body: html`<label class="field"><span>Username</span><input class="input" autocomplete="off" placeholder="Exact username"></label><div class="form-error"></div>`,
+                    actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Add', cls: 'primary', handler: async m => {
+                        const name = m.querySelector('input').value.trim();
+                        const { users: found } = await get(`/users?q=${encodeURIComponent(name)}`);
+                        const u = found.find(x => x.username.toLowerCase() === name.toLowerCase());
+                        if (!u) throw new Error('No player with that username');
+                        return post(`/tournaments/${t.id}/force-join`, { userId: u.id });
+                    } }],
+                });
+                if (res) { toast('Player added.'); ctx.reload(); }
+            }
+            if (a === 'bots') {
+                const res = await modal({
+                    title: 'Add test bots', text: `Bots are fake ${t.mode === 'duo' ? 'teams' : 'players'} that check in automatically — handy for testing the bracket. Delete them later in the Owner panel.`,
+                    body: html`<label class="field"><span>How many</span><input class="input" type="number" min="1" max="${Math.max(1, t.maxEntrants - t.entries.length)}" value="${Math.min(4, Math.max(1, t.maxEntrants - t.entries.length))}"></label><div class="form-error"></div>`,
+                    actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Add bots', cls: 'primary', handler: m => post(`/tournaments/${t.id}/bots`, { count: Number(m.querySelector('input').value) }) }],
+                });
+                if (res) { toast('Bots added.'); ctx.reload(); }
+            }
             if (a === 'checkin') {
                 if (await withBusy(el, () => post(`/tournaments/${t.id}/checkin`))) { toast("Checked in — you're good to go!"); ctx.reload(); }
             }
@@ -268,7 +322,7 @@ export default {
                 const reason = await modal({
                     title: 'Cancel tournament', text: 'Everyone registered gets notified.',
                     body: html`<label class="field"><span>Reason</span><input class="input" name="reason" maxlength="200" placeholder="e.g. not enough players"></label>`,
-                    actions: [{ label: 'Keep it', cls: 'ghost', value: null }, { label: 'Cancel tournament', cls: 'danger', handler: el2 => el2.querySelector('input').value || 'Cancelled by an organizer' }],
+                    actions: [{ label: 'Keep it', cls: 'ghost', value: null }, { label: 'Cancel tournament', cls: 'danger', handler: el2 => el2.querySelector('input').value || 'Cancelled by an admin' }],
                 });
                 if (reason && await withBusy(el, () => post(`/tournaments/${t.id}/cancel`, { reason }))) ctx.reload();
             }
@@ -282,7 +336,7 @@ export default {
                 const reason = await modal({
                     title: 'Disqualify entry', text: 'Their current match is forfeited and they are out of the tournament.',
                     body: html`<label class="field"><span>Reason (shown to players)</span><input class="input" maxlength="200" placeholder="e.g. cheating, toxic behaviour"></label>`,
-                    actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Disqualify', cls: 'danger', handler: el2 => el2.querySelector('input').value || 'Disqualified by an organizer' }],
+                    actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Disqualify', cls: 'danger', handler: el2 => el2.querySelector('input').value || 'Disqualified by an admin' }],
                 });
                 if (reason && await withBusy(el, () => post(`/tournaments/${t.id}/entries/${el.dataset.entry}/dq`, { reason }))) ctx.reload();
             }

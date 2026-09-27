@@ -4,7 +4,7 @@ const cfg = require('./config');
 const rating = require('./rating');
 const rt = require('./realtime');
 
-const ACCENTS = ['#c4ff4d', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
+const ACCENTS = ['#818cf8', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
 const BANNERS = ['aurora', 'ember', 'ocean', 'toxic', 'grape', 'sunset', 'mono', 'grid'];
 const SOCIALS = ['youtube', 'twitch', 'tiktok', 'discord', 'twitter'];
 
@@ -105,6 +105,7 @@ function privateView(u) {
         ...profile(u),
         robloxPending: u.robloxPending ? { name: u.robloxPending.name, displayName: u.robloxPending.displayName, code: u.robloxPending.code, id: u.robloxPending.id } : null,
         friends: u.friends,
+        legacy: u.legacy && u.legacy.robloxUsername ? { robloxUsername: u.legacy.robloxUsername } : null,
     };
 }
 

@@ -16,7 +16,7 @@ function chIcon(c) {
     if (c.type === 'dm') return avatar(c.other, 'md', { online: true });
     if (c.type === 'team') return html`<span class="ch-ico" style="--c:${c.color || '#888'}">${icon('users')}</span>`;
     if (c.type === 'match') return html`<span class="ch-ico match">${icon('swords')}</span>`;
-    return html`<span class="ch-ico tour" style="--c:${c.accent || '#c4ff4d'}">${icon('trophy')}</span>`;
+    return html`<span class="ch-ico tour" style="--c:${c.accent || '#818cf8'}">${icon('trophy')}</span>`;
 }
 
 function preview(c) {
@@ -34,7 +34,7 @@ export default {
         const cur = d.channels.find(c => c.id === active);
         return html`<div class="wrap page chat-page ${active ? 'has-active' : ''}">
             <aside class="ch-list card flush">
-                <div class="ch-list-head"><h2>Chat</h2><a class="btn sm" href="/friends">${icon('userPlus')}Friends</a></div>
+                <div class="ch-list-head"><h2>Chat</h2><a class="btn sm" href="/players?tab=friends">${icon('userPlus')}Friends</a></div>
                 ${d.channels.length ? GROUPS.map(([type, label]) => {
                     const list = d.channels.filter(c => c.type === type);
                     if (!list.length) return '';

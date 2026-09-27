@@ -59,6 +59,15 @@ const P = {
     upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
     download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
     ban: '<circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/>',
+    bracket: '<path d="M3 5h5v5H3M3 14h5v5H3M8 7.5h3v9H8M11 12h4M21 9h-5v6h5"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+    moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+    expand: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.09-3.09a2 2 0 0 0-2.82 0L6 21"/>',
+    zoomIn: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/>',
+    zoomOut: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/>',
+    robot: '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9 17h6"/>',
+    discord: '<path d="M8.5 17c-2.5 0-4.5-1-4.5-1 0-4 1-8 3-10 1.3-.5 2.5-.8 3.5-1l.5 1.2c.7-.1 1.3-.1 2 0L14 5c1 .2 2.2.5 3.5 1 2 2 3 6 3 10 0 0-2 1-4.5 1l-1-1.5"/><circle cx="9.5" cy="12.5" r="1.2"/><circle cx="14.5" cy="12.5" r="1.2"/>',
     wifi: '<path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>',
 };
 
@@ -68,8 +77,9 @@ export function icon(name, cls = '') {
 
 // Brand mark: a little ragdoll mid-fling.
 export const logoMark = raw(`<svg viewBox="0 0 40 40" aria-hidden="true">
-  <rect x="1" y="1" width="38" height="38" rx="11" fill="#c4ff4d"/>
-  <g transform="rotate(-24 20 21)" fill="#0c1400">
+  <defs><linearGradient id="lg-logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset=".55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/></linearGradient></defs>
+  <rect x="1" y="1" width="38" height="38" rx="11" fill="url(#lg-logo)"/>
+  <g transform="rotate(-24 20 21)" fill="#ffffff">
     <rect x="15.5" y="7" width="9" height="8" rx="2"/>
     <rect x="14" y="16" width="12" height="10" rx="1.5"/>
     <rect x="8.5" y="15" width="4.5" height="10" rx="1.5" transform="rotate(-35 10.7 16)"/>
@@ -77,5 +87,5 @@ export const logoMark = raw(`<svg viewBox="0 0 40 40" aria-hidden="true">
     <rect x="14.5" y="27" width="5" height="8" rx="1.5"/>
     <rect x="20.5" y="27" width="5" height="8" rx="1.5" transform="rotate(-20 23 27)"/>
   </g>
-  <path d="M6 32c3 1 5 1 8 0" stroke="#0c1400" stroke-width="2" stroke-linecap="round" fill="none" opacity=".5"/>
+  <path d="M6 32c3 1 5 1 8 0" stroke="#ffffff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".6"/>
 </svg>`);

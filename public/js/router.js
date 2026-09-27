@@ -104,9 +104,9 @@ async function render() {
     }
     if (token !== navToken) return;
 
-    if (view.auth && !store.me) {
+    if (view.auth !== false && !store.me) {
         endProgress();
-        navigate(`/login?next=${encodeURIComponent(url.pathname + url.search)}`, { replace: true });
+        navigate(url.pathname === '/' ? '/login' : `/login?next=${encodeURIComponent(url.pathname + url.search)}`, { replace: true });
         return;
     }
     if ((view.auth === 'ref' && !store.isStaff()) || (view.auth === 'admin' && !store.isAdmin())) {
@@ -186,8 +186,11 @@ function paint(view, data, ctx, first) {
     }
     tickTimes(el);
     if (view.mount) {
+        const mine = current;
         const c = view.mount(el, data, ctx, { first });
-        current.cleanup = typeof c === 'function' ? c : null;
+        // mount() may have navigated away already (e.g. /login while logged in).
+        if (current === mine) current.cleanup = typeof c === 'function' ? c : null;
+        else if (typeof c === 'function') c({ leaving: true });
     }
 }
 

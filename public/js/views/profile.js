@@ -3,7 +3,7 @@ import { get, post, del } from '../api.js';
 import { store } from '../store.js';
 import { navigate, setQuery } from '../router.js';
 import { icon } from '../icons.js';
-import { avatar, tier, tierName, empty, bannerClass, toast, withBusy, confirm, popover, modal } from '../ui.js';
+import { avatar, userChip, tier, tierName, empty, bannerClass, toast, withBusy, confirm, popover, modal } from '../ui.js';
 import { mountAvatar3d } from '../avatar3d.js';
 
 const SOCIAL = {
@@ -23,9 +23,9 @@ function eloChart(history) {
     const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, H - ((v - min) / (max - min)) * (H - 16) - 8]);
     const d = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' ');
     return raw(`<div class="elo-wrap"><svg class="elo-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="Elo history">
-        <defs><linearGradient id="eg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#c4ff4d" stop-opacity=".25"/><stop offset="1" stop-color="#c4ff4d" stop-opacity="0"/></linearGradient></defs>
+        <defs><linearGradient id="eg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#818cf8" stop-opacity=".25"/><stop offset="1" stop-color="#818cf8" stop-opacity="0"/></linearGradient></defs>
         <path d="${d} L${W} ${H} L0 ${H} Z" fill="url(#eg)"/>
-        <path d="${d}" fill="none" stroke="#c4ff4d" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+        <path d="${d}" fill="none" stroke="#818cf8" stroke-width="2.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
     </svg><span class="ax ax-max mono">${Math.round(max - 10)}</span><span class="ax ax-min mono">${Math.round(min + 10)}</span></div>`);
 }
 
@@ -50,9 +50,11 @@ export default {
     render(d, ctx) {
         const u = d.user;
         const modes = ['solo', 'duo'];
-        const auto = u.stats.duo.matches > u.stats.solo.matches ? 'duo' : u.profile.favoriteMode || 'solo';
+        const vis = d.visible || { stats: true, history: true };
+        const auto = u.stats && u.stats.duo.matches > u.stats.solo.matches ? 'duo' : u.profile.favoriteMode || 'solo';
         const mode = modes.includes(ctx.query.mode) ? ctx.query.mode : auto;
-        const s = u.stats[mode];
+        const s = u.stats ? u.stats[mode] : null;
+        const hidden = (what) => html`<div class="card">${empty('lock', `${u.displayName} keeps their ${what} private`, 'Only friends (or nobody) can see this part of the profile.')}</div>`;
         const isMe = d.relation && d.relation.isMe;
         const socials = Object.entries(u.profile.socials || {}).filter(([k, v]) => v && SOCIAL[k]);
         return html`<div class="profile" style="--pa:${u.accent}">
@@ -63,7 +65,8 @@ export default {
                     <div class="p-id">
                         <div class="row wrap-ok" style="gap:10px">
                             <h1 class="display">${u.displayName}</h1>
-                            ${u.role === 'admin' ? html`<span class="chip accent">${icon('shield')}Organizer</span>` : u.role === 'ref' ? html`<span class="chip blue">${icon('whistle')}Referee</span>` : ''}
+                            ${u.role === 'owner' ? html`<span class="chip gold">${icon('crown')}Owner</span>` : u.role === 'admin' || u.role === 'ref' ? html`<span class="chip accent">${icon('shield')}Admin</span>` : ''}
+                            ${u.isBot ? html`<span class="chip">${icon('robot')}Bot</span>` : ''}
                         </div>
                         <div class="row wrap-ok dim" style="gap:14px;margin-top:6px">
                             <span>@${u.username}</span>
@@ -93,11 +96,14 @@ export default {
                             <div class="badges">${u.badges.map(b => html`<div class="badge-item b-${b.id}" title="${b.desc}">${icon(BADGE_ICON[b.id] || 'star')}<span>${b.name}</span></div>`)}</div></div>` : ''}
                         ${d.teams.length ? html`<div class="card"><div class="card-head"><h3>Teams</h3></div>
                             <div class="list">${d.teams.map(t => html`<a class="list-item" href="/team/${t.id}"><span class="team-dot" style="--c:${t.color}"></span><b class="ellipsis" style="flex:1">${t.name}</b><span class="av-stack">${t.members.map(m => avatar(m, 'xs'))}</span></a>`)}</div></div>` : ''}
+                        ${(d.pastTeams || []).length ? html`<div class="card"><div class="card-head"><h3>Past teams</h3></div>
+                            <div class="list">${d.pastTeams.map(t => html`<a class="list-item" href="/team/${t.id}"><span class="team-dot" style="--c:${t.color}"></span>
+                                <span class="ellipsis" style="flex:1"><b>${t.name}</b><br><small class="muted">${t.joinedAt ? shortDate(t.joinedAt) : ''}${t.leftAt ? ` – ${shortDate(t.leftAt)}` : t.disbanded ? ' · disbanded' : ''}</small></span></a>`)}</div></div>` : ''}
                         <div class="dim center" style="font-size:13px">Member since ${shortDate(u.createdAt)} · ${u.friendCount} friend${u.friendCount === 1 ? '' : 's'}</div>
                     </aside>
 
                     <div class="col" style="gap:18px">
-                        <div class="card rank-card">
+                        ${!s ? hidden('stats') : html`<div class="card rank-card">
                             <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:12px">
                                 <div class="seg big" data-mode>${modes.map(k => html`<button class="${k === mode ? 'on' : ''}" data-v="${k}">${k === 'solo' ? 'Solo 1v1' : 'Duo 2v2'}</button>`)}</div>
                                 ${s.matches < 10 ? html`<span class="chip">Provisional · ${s.matches}/10 matches</span>` : ''}
@@ -119,8 +125,21 @@ export default {
                                 ['Best streak', s.bestStreak], ['Titles', s.titles], ['Podiums', s.podiums],
                                 ['Tournaments', s.tournaments], ['Best finish', s.bestPlace ? ordinal(s.bestPlace) : '—'], ['No-shows', s.noShows],
                             ].map(([k, v]) => html`<div class="stat-box stat"><b>${v}</b><span>${k}</span></div>`)}
-                        </div>
-                        <div class="card">
+                        </div>`}
+                        ${!vis.history ? hidden('match history') : ''}
+                        ${vis.history && d.opponents.length ? html`<div class="card flush">
+                            <div class="card-head" style="padding:18px 18px 0"><h3>Who they've fought</h3></div>
+                            <div class="table-scroll"><table class="table">
+                                <thead><tr><th>Opponent</th><th class="num">Duels won–lost</th><th class="num">Kills–deaths</th><th class="num">Last score</th><th>When</th></tr></thead>
+                                <tbody>${d.opponents.map(o => html`<tr>
+                                    <td>${userChip(o.user)}</td>
+                                    <td class="num"><b class="${o.duelsWon > o.duelsLost ? 'up' : o.duelsWon < o.duelsLost ? 'down' : ''}">${o.duelsWon}–${o.duelsLost}</b></td>
+                                    <td class="num">${o.kills}–${o.deaths}</td>
+                                    <td class="num">${o.lastScore ? html`<a href="/m/${o.lastMatchId}">${o.lastScore[0]}–${o.lastScore[1]}</a>` : '—'}</td>
+                                    <td class="dim nowrap">${o.last ? time(o.last, 'ago') : ''}</td>
+                                </tr>`)}</tbody></table></div>
+                        </div>` : ''}
+                        ${vis.history ? html`<div class="card">
                             <div class="card-head"><h3>Recent matches</h3></div>
                             ${d.matches.length ? html`<div class="list">${d.matches.map(m => html`<a class="list-item hist ${m.won ? 'won' : 'lost'}" href="/m/${m.id}">
                                 <span class="res">${m.won ? 'W' : 'L'}</span>
@@ -129,7 +148,7 @@ export default {
                                 ${m.change ? html`<span class="delta mono ${m.change.elo > 0 ? 'up' : m.change.elo < 0 ? 'down' : ''}">${signed(m.change.elo)}</span>` : ''}
                                 <span class="dim nowrap" style="font-size:12.5px">${time(m.at, 'ago')}</span>
                             </a>`)}</div>` : empty('swords', 'No matches yet', isMe ? 'Enter a tournament to start your record.' : '')}
-                        </div>
+                        </div>` : ''}
                         ${d.tournaments.length ? html`<div class="card"><div class="card-head"><h3>Tournaments</h3></div>
                             <div class="list">${d.tournaments.map(t => html`<a class="list-item" href="/t/${t.id}">
                                 <span class="place ${t.place && t.place <= 3 ? `p${t.place}` : ''}">${t.place ? ordinal(t.place) : t.status === 'live' ? 'LIVE' : '—'}</span>

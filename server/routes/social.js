@@ -13,7 +13,7 @@ const { route, bad, HttpError } = require('../errors');
 
 const router = express.Router();
 const { requireAuth } = auth;
-const TEAM_COLORS = ['#c4ff4d', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
+const TEAM_COLORS = ['#818cf8', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
 
 const findUser = name => {
     const u = db.userByName(name);
@@ -142,6 +142,26 @@ router.get('/users', route(req => {
         .slice(0, 12)
         .map(users.summary);
     return { users: list };
+}));
+
+// "Players" page: everyone, with how they relate to you.
+router.get('/players', requireAuth, route(req => {
+    const q = String(req.query.q || '').trim().toLowerCase();
+    const me = req.user;
+    const reqs = Object.values(db.data.friendRequests);
+    const list = Object.values(db.data.users)
+        .filter(u => !u.deleted && !u.banned && !u.isBot && u.id !== me.id)
+        .filter(u => !q || u.username.toLowerCase().includes(q) || (u.displayName || '').toLowerCase().includes(q))
+        .sort((a, b) => Number(rt.isOnline(b.id)) - Number(rt.isOnline(a.id)) || (b.lastSeenAt || '').localeCompare(a.lastSeenAt || ''))
+        .slice(0, 150)
+        .map(u => ({
+            ...users.summary(u),
+            lastSeenAt: u.lastSeenAt,
+            friend: me.friends.includes(u.id),
+            requestSent: (reqs.find(r => r.from === me.id && r.to === u.id) || {}).id || null,
+            requestReceived: (reqs.find(r => r.from === u.id && r.to === me.id) || {}).id || null,
+        }));
+    return { players: list };
 }));
 
 router.patch('/me/profile', requireAuth, route(req => {

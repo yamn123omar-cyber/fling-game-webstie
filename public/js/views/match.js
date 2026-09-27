@@ -90,16 +90,16 @@ function duelList(m) {
 function refConsole(m) {
     const v = m.viewer;
     if (!v.isStaff) return '';
-    if (!v.canRef) return html`<div class="card ref-card"><div class="card-head">${icon('whistle')}<h3>Referee</h3></div><p class="dim">You're playing in this match, so another referee has to run it.</p></div>`;
+    if (!v.canRef) return html`<div class="card ref-card"><div class="card-head">${icon('whistle')}<h3>Admin</h3></div><p class="dim">You're playing in this match, so another admin has to score it.</p></div>`;
     const mine = v.isRef || v.isAdmin;
     const active = ['scheduled', 'ready', 'live'].includes(m.status);
     const cur = m.duels.find(d => d.winner === null);
     const key = `ref-${m.status}-${cur ? cur.n : 'x'}-${m.ref ? m.ref.id : 'none'}`;
     return html`<div class="card ref-card" data-keep="${key}">
-        <div class="card-head">${icon('whistle')}<h3>Referee console</h3><span class="spacer"></span>
+        <div class="card-head">${icon('whistle')}<h3>Score this match</h3><span class="spacer"></span>
             ${m.ref ? html`<span class="chip blue">${m.ref.displayName}${v.isRef ? ' (you)' : ''}</span>` : html`<span class="chip">Unclaimed</span>`}</div>
-        ${active && !m.ref ? html`<p class="dim" style="margin-bottom:12px">Claim the match, join the players' Roblox server, and watch each duel. You enter the kills — players can't.</p>
-            <button class="btn primary block" data-act="claim">${icon('whistle')}Claim this match</button>` : ''}
+        ${active && !m.ref ? html`<p class="dim" style="margin-bottom:12px">Take the match, join the players' Roblox server, and watch each duel. You enter the kills — players can't.</p>
+            <button class="btn primary block" data-act="claim">${icon('whistle')}Take this match</button>` : ''}
         ${active && m.ref && !mine ? html`<p class="dim">${m.ref.displayName} is refereeing this match.</p>` : ''}
         ${mine && m.status === 'scheduled' ? html`<div class="inset dim">Waiting for check-ins. Deadline ${time(m.deadlineAt, 'clock')} — no-shows forfeit automatically.</div>` : ''}
         ${mine && m.status === 'ready' ? html`<button class="btn primary lg block" data-act="start">${icon('play')}Start match</button>
@@ -149,13 +149,13 @@ function playerActions(m) {
                 : html`<button class="btn primary xl pulse" data-act="checkin">${icon('check')}Check in — I'm here</button>`}
             <span class="spacer"></span>
             <button class="btn" data-act="propose">${icon('calendar')}Propose new time</button>
-            <button class="btn" data-act="callref">${icon('bell')}Call a ref</button>
+            <button class="btn" data-act="callref">${icon('bell')}Call an admin</button>
         </div>`);
     }
     if (['ready', 'live'].includes(m.status)) {
         out.push(html`<div class="m-actions"><div class="checked">${icon(m.status === 'live' ? 'swords' : 'whistle')}<div><b>${m.status === 'live' ? 'Match in progress' : m.ref ? `${m.ref.displayName} is your ref` : 'Waiting for a referee'}</b>
-            <span>${m.ref ? html`Add ${m.ref.robloxName ? html`<b>${m.ref.robloxName}</b>` : 'them'} to your Roblox server so they can watch.` : 'A ref will claim your match shortly. You can ping one if it takes a while.'}</span></div></div>
-            <span class="spacer"></span><button class="btn" data-act="callref">${icon('bell')}Call a ref</button></div>`);
+            <span>${m.ref ? html`Add ${m.ref.robloxName ? html`<b>${m.ref.robloxName}</b>` : 'them'} to your Roblox server so they can watch.` : 'An admin will take your match shortly. You can ping one if it takes a while.'}</span></div></div>
+            <span class="spacer"></span><button class="btn" data-act="callref">${icon('bell')}Call an admin</button></div>`);
     }
     return html`${out}`;
 }
@@ -212,7 +212,7 @@ export default {
                 </div>
                 <div class="col" style="gap:18px">
                     ${m.viewer.canChat ? html`<div class="chat-slot" data-keep="mchat-${m.id}"></div>`
-                        : html`<div class="card">${empty('lock', 'Match room is private', store.me ? 'Only the players and referees can see this chat.' : 'Log in if you are playing in this match.')}</div>`}
+                        : html`<div class="card">${empty('lock', 'Match room is private', store.me ? 'Only the players and admins can see this chat.' : 'Log in if you are playing in this match.')}</div>`}
                 </div>
             </div>
         </div>`;
@@ -245,8 +245,8 @@ export default {
             const a = el.dataset.act;
             const call = (path, body) => withBusy(el, () => post(`/matches/${m.id}/${path}`, body));
             if (a === 'checkin' && await call('checkin')) toast("Checked in! Your check-in time is logged in the match room.");
-            if (a === 'callref' && await call('call-ref')) toast('Referees have been pinged.');
-            if (a === 'claim' && await call('claim')) toast('You are the referee. Join their server and start when ready.');
+            if (a === 'callref' && await call('call-ref')) toast('The admins have been pinged.');
+            if (a === 'claim' && await call('claim')) toast('This match is yours. Join their server and start when ready.');
             if (a === 'release' && await call('release')) toast('Released.');
             if (a === 'start' && await call('start')) toast('Match is live!');
             if (a === 'undo' && await confirm('Undo the last duel result?', 'The duel goes back to in-progress so you can correct it.', { yes: 'Undo' })) await call('undo');
@@ -270,7 +270,7 @@ export default {
                 const v = root.querySelector('[name=resched]').value;
                 if (v) await call('reschedule', { at: new Date(v).toISOString() });
             }
-            if (a === 'reopen' && await confirm('Reopen this result?', 'Rating changes are reverted and the match goes back to the referee.', { yes: 'Reopen', danger: true })) await call('reopen');
+            if (a === 'reopen' && await confirm('Reopen this result?', 'Rating changes are reverted and the match goes back to the admin.', { yes: 'Reopen', danger: true })) await call('reopen');
             if (a === 'propose') {
                 const at = await modal({
                     title: 'Propose a new time',

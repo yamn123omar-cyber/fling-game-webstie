@@ -3,13 +3,14 @@ import { get, post, patch } from '../api.js';
 import { navigate } from '../router.js';
 import { icon } from '../icons.js';
 import { toast } from '../ui.js';
+import { store } from '../store.js';
 
-const ACCENTS = ['#c4ff4d', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
+const ACCENTS = ['#818cf8', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
 
 export default {
     title: (d) => (d.t ? `Edit ${d.t.name}` : 'New tournament'),
-    auth: 'admin',
     async load(ctx) {
+        if (!store.isStaff()) { const e = new Error('Only admins can create tournaments'); e.status = 403; throw e; }
         const cfg = await get('/config');
         if (!ctx.params.id) return { t: null, defaults: cfg.tournamentDefaults };
         const res = await get(`/tournaments/${ctx.params.id}`);
@@ -19,7 +20,8 @@ export default {
         const t = d.t;
         const s = t ? t.settings : d.defaults;
         const mode = t ? t.mode : 'solo';
-        const format = t ? t.format : 'single';
+        const format = t ? t.format : 'twosided';
+        const prizes = (t && t.prizes) || { first: '', second: '', third: '' };
         const start = t ? t.startAt : new Date(Math.ceil((Date.now() + 2 * 864e5) / 36e5) * 36e5).toISOString();
         const accent = t ? t.accent : ACCENTS[0];
         const locked = t && t.entries.length > 0;
@@ -36,12 +38,14 @@ export default {
                         <div class="field"><span>Mode</span>
                             <div class="seg big" data-seg="mode">${[['solo', 'Solo 1v1'], ['duo', 'Duo 2v2']].map(([k, l]) => html`<button type="button" class="${mode === k ? 'on' : ''}" data-v="${k}" ${locked && k !== mode ? 'disabled' : ''}>${l}</button>`)}</div>
                             <input type="hidden" name="mode" value="${mode}">${locked ? html`<small>Locked — people already registered.</small>` : ''}</div>
-                        <div class="field"><span>Format</span>
-                            <div class="seg big" data-seg="format">${[['single', 'Single elim'], ['double', 'Double elim']].map(([k, l]) => html`<button type="button" class="${format === k ? 'on' : ''}" data-v="${k}">${l}</button>`)}</div>
-                            <input type="hidden" name="format" value="${format}"><small>Double elimination: you're out after two losses — fairer, takes longer.</small></div>
+                        <div class="field"><span>Bracket</span>
+                            <div class="inset" style="font-size:13.5px">${icon('bracket')} <b>Two-sided</b> — left and right halves meet in the Final.</div>
+                            <input type="hidden" name="format" value="${format}"></div>
                         <label class="field"><span>Start time <small>(your local time)</small></span><input class="input" type="datetime-local" name="startAt" required value="${toLocalInput(start)}"></label>
                         <label class="field"><span>Max ${mode === 'duo' ? 'teams' : 'players'}</span><input class="input" type="number" name="maxEntrants" min="2" max="256" value="${t ? t.maxEntrants : d.defaults.maxEntrants}"></label>
-                        <label class="field"><span>Prize <small>(optional)</small></span><input class="input" name="prize" maxlength="120" value="${t ? t.prize : ''}" placeholder="e.g. 1,000 Robux"></label>
+                        <label class="field"><span>1st place prize <small>(optional)</small></span><input class="input" name="prize1" maxlength="80" value="${prizes.first}" placeholder="e.g. 1,000 Robux"></label>
+                        <label class="field"><span>2nd place prize</span><input class="input" name="prize2" maxlength="80" value="${prizes.second}" placeholder="optional"></label>
+                        <label class="field"><span>3rd place prize</span><input class="input" name="prize3" maxlength="80" value="${prizes.third}" placeholder="optional"></label>
                         <div class="field"><span>Accent colour</span><div class="swatches">${ACCENTS.map(c => html`<button type="button" class="swatch ${accent === c ? 'on' : ''}" style="background:${c}" data-accent="${c}"></button>`)}</div><input type="hidden" name="accent" value="${accent}"></div>
                         <label class="field full"><span>Description</span><textarea class="textarea" name="description" maxlength="2000" placeholder="What is this tournament about? Any theme or special map?">${t ? t.description : ''}</textarea></label>
                         <label class="field full"><span>Extra rules <small>(optional — the standard rules always apply)</small></span><textarea class="textarea" name="rules" maxlength="4000" placeholder="e.g. No items. Server: public. Must stream to Discord.">${t ? t.rules : ''}</textarea></label>
@@ -65,8 +69,8 @@ export default {
                     <div class="grid grid-2" style="gap:10px">
                         <div class="duo-only ${mode === 'solo' ? 'hidden' : ''}">${chk('allowSoloTeams', 'Allow teams of 1', 'Players without a partner can enter alone. They fight both duels and have rating penalties.')}</div>
                         ${chk('requireRoblox', 'Require verified Roblox', 'Only players who verified their Roblox account can register.')}
-                        <div class="double-only ${format === 'single' ? 'hidden' : ''}">${chk('grandFinalReset', 'Grand final reset', 'If the losers-bracket side wins the final, play one more match (true double elimination).')}</div>
-                        <div class="single-only ${format === 'double' ? 'hidden' : ''}">${chk('thirdPlaceMatch', 'Third place match', 'Semifinal losers play for 3rd.')}</div>
+                        ${chk('secondChances', 'Losers bracket (second chances)', 'When a round has an odd number of players, the losers of that round fight for the open spot instead of someone getting a free pass.')}
+                        ${chk('thirdPlaceMatch', 'Third place match', 'The two side-final losers play for 3rd place.')}
                     </div>
                 </div>
 
@@ -98,11 +102,9 @@ export default {
                 const seg = b.closest('[data-seg]');
                 $$('button', seg).forEach(x => x.classList.toggle('on', x === b));
                 form[seg.dataset.seg].value = b.dataset.v;
-                const mode = form.mode.value, format = form.format.value;
+                const mode = form.mode.value;
                 $$('.solo-only', root).forEach(x => x.classList.toggle('hidden', mode !== 'solo'));
                 $$('.duo-only', root).forEach(x => x.classList.toggle('hidden', mode !== 'duo'));
-                $$('.double-only', root).forEach(x => x.classList.toggle('hidden', format !== 'double'));
-                $$('.single-only', root).forEach(x => x.classList.toggle('hidden', format !== 'single'));
             }),
             on(root, 'click', '[data-accent]', (e, b) => { $$('[data-accent]', root).forEach(x => x.classList.toggle('on', x === b)); form.accent.value = b.dataset.accent; }),
             on(root, 'click', '[data-publish]', (e, b) => { publish = b.dataset.publish === '1'; }),
@@ -113,12 +115,13 @@ export default {
                 const f = form;
                 const settings = {};
                 for (const k of ['firstTo', 'bestOf', 'finalBestOf', 'checkinMinutes', 'matchPrepMinutes', 'matchCheckinMinutes', 'noShowGraceMinutes']) settings[k] = Number(f[k].value);
-                for (const k of ['allowSoloTeams', 'requireRoblox', 'grandFinalReset', 'thirdPlaceMatch']) settings[k] = f[k].checked;
+                for (const k of ['allowSoloTeams', 'requireRoblox', 'secondChances', 'thirdPlaceMatch']) settings[k] = f[k].checked;
                 settings.drawRule = f.drawRule.value;
                 const body = {
                     name: f.name.value, mode: f.mode.value, format: f.format.value,
                     startAt: f.startAt.value ? new Date(f.startAt.value).toISOString() : null,
-                    maxEntrants: Number(f.maxEntrants.value), prize: f.prize.value, accent: f.accent.value,
+                    maxEntrants: Number(f.maxEntrants.value), accent: f.accent.value,
+                    prizes: { first: f.prize1.value, second: f.prize2.value, third: f.prize3.value },
                     description: f.description.value, rules: f.rules.value, settings,
                 };
                 const btns = $$('button[type=submit]', f);

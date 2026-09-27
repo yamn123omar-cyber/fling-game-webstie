@@ -1,6 +1,6 @@
-# FTAP Arena
+# Fling Tournament
 
-Competitive tournaments for **Fling Things and People** (Roblox): solo and duo brackets, match rooms with an evidence-grade chat, human referees who score every fight, Elo ratings, ranking points, friends, teams and profiles with your Roblox avatar.
+Tournaments for **Fling Things and People** (Roblox): log in, sign up for solo or duo tournaments, play your matches in match rooms with a chat that works as evidence, and let admins score every fight. Everything is saved: wins and losses, tournament wins, who you fought and the score, which teams you were in and which tournaments you played. Players see all of it on their profile.
 
 ## Quick start
 
@@ -9,54 +9,76 @@ npm install
 npm start            # http://localhost:3000
 ```
 
-The **first account** you create becomes the admin. On a real deployment set `ADMIN_USERNAMES=yourname` instead: then only those usernames ever become admin automatically. (When old-site accounts are being imported via `DISCORD_GUILD_ID` and `ADMIN_USERNAMES` is empty, only the old owner account `okok_0020` is made admin.) Admins can promote others from the admin panel.
+The first screen is **Log in / Create account**, with a small FTAP mini-game behind it: grab the ragdolls and fling them into the water (+1) or through the ring (+3).
 
 Want to click around with realistic data first?
 
 ```bash
-npm run seed         # demo players, teams, a finished + a live + open tournaments
+npm run seed         # demo players, teams, bots, a finished + a live + open tournaments
 npm start
 ```
 
-Log in as `arena_admin`, `RefRaptor` (referee) or any player such as `NoobSlinger`; the password is `flingflong`. Run `npm run seed -- --force` to wipe and reseed. Don't run the seed on your real server. Seeded data is flagged as a demo, so it is never backed up to or announced in Discord, even if your `.env` has the Discord settings. Delete the `data/` folder when you're done testing.
+Log in as `okok_0020` (owner), `RefRaptor` (admin) or any player such as `NoobSlinger`; the password is `flingflong`. Run `npm run seed -- --force` to wipe and reseed. Don't run the seed on your real server. Seeded data is flagged as demo data, so Discord stays off even if your `.env` has the Discord settings. Delete the `data/` folder when you're done testing.
+
+## Roles
+
+| Role | Can do |
+|---|---|
+| **Owner** | Everything. Set with `OWNER_USERNAME` (default `okok_0020`). Has the **Owner panel**: make players admin (or take it away), ban, link Roblox accounts, create and delete test bots, the Discord server, backups and export. |
+| **Admin** | Creates tournaments and runs them from the **Admin panel**: takes matches and enters the scores. An admin is automatically on the admin team of every tournament they create, and more admins can be added. **Admins can't sign up for a tournament they run**, and nobody can score a match they play in. |
+| **Player** | Signs up for tournaments, checks in, chats, adds friends, makes teams. |
 
 ## How it works
 
 | Piece | What happens |
 |---|---|
-| **Tournaments** | Admins create solo (1v1) or duo (2v2) tournaments, single or double elimination. Players register, check in before the start, and the bracket is generated automatically, seeded by Elo. |
-| **Match rooms** | When both sides of a match are known, a room opens with a scoreboard, rosters (with Roblox names) and a chat. Players press *Check in*; anyone not checked in by the deadline **forfeits automatically**. The chat can't be edited or deleted and every check-in, no-show and result is logged with a server timestamp, so "I was there but they didn't answer" can be checked. |
-| **Referees** | FTAP has no 1v1 scoreboard, so staff with the *Referee* role claim matches from the **Ref desk**, join the server, tally kills live (spectators see it update), and confirm each duel. Refs can't referee their own match. They can rule forfeits, reschedule, undo a duel; admins can reopen results. |
+| **Layout** | After logging in, a sidebar shows where you are: Play (Home, Tournaments, Bracket, My matches), Friends & teams (Players & friends, My team, Chat), Stats (Leaderboard, My profile), then Admin/Owner if you have the role. There's a light and a dark theme. |
+| **Bracket** | Two-sided: players are split into a left and right side (seeded by Elo, so the top two can only meet in the Final). The sides meet in the middle. **Losers bracket:** when a round has an odd number of players, the losers of that round fight for the open spot instead of someone getting a free pass. Plus a 3rd place match. The Bracket page has zoom, fullscreen and *Save image*. |
+| **Match rooms** | When both sides of a match are known, a room opens with a scoreboard, rosters (with Roblox names) and a chat. Players press *Check in*; anyone not checked in by the deadline **forfeits automatically**. Chat can't be edited or deleted and every check-in and result is logged with a server timestamp. |
+| **Scoring** | An admin takes the match, joins the server, counts kills live (spectators see it update) and confirms each duel. They can rule forfeits, reschedule, undo a duel or reopen a result. |
 | **Solo format** | Best-of-N duels (default 3, final 5), each duel first to N kills (default 5). |
-| **Duo format** | Two 1v1 duels: best vs best, second vs second (ordered by rating). At 1–1 the system randomly picks two players who haven't fought yet for a decider. Optionally, organizers can settle 1–1 on total kills first. |
+| **Duo format** | Two 1v1 duels: best vs best, second vs second (ordered by rating). At 1–1 the system randomly picks two players who haven't fought yet for a decider. |
 | **Teams of 1** | Allowed in duo tournaments (toggle per tournament). The solo player fights both duels, gets 75% Elo on wins / 125% on losses, 60% ranking points, and loses 5 RP on a loss. Full teams never lose RP. |
-| **Ratings** | Separate Solo and Duo Elo (start 1000, K=40 provisional → 32 → 24 above 1500) plus Ranking Points for season progress and placements. No-shows cost 10 Elo and 10 RP. |
+| **Ratings** | Separate Solo and Duo Elo plus Ranking Points. No-shows cost 10 Elo and 10 RP. |
+| **Profiles** | Stats, rating graph, match history, **who they've fought** (duels won–lost, kills, last score), current and past teams, tournaments with placements, badges, 3D Roblox avatar. Each part can be public, friends-only or private. |
 
-All the numbers live in [`server/config.js`](server/config.js) and are shown on the public Rules page, so changing them there changes both.
+All the numbers live in [`server/config.js`](server/config.js) and are shown on the Rules page.
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Everything is optional.
+Copy `.env.example` to `.env`.
 
 | Variable | Purpose |
 |---|---|
 | `PORT` | HTTP port (default 3000). |
 | `DATA_DIR` | Where `db.json` is stored (default `./data`). Use a persistent disk in production. |
-| `ADMIN_USERNAMES` | Comma-separated usernames that become admins when they register or first log in. Recommended. |
-| `DISCORD_BOT_TOKEN` | Enables the Discord features below. |
-| `DISCORD_BACKUP_CHANNEL_ID` | Compressed database backup every `BACKUP_INTERVAL_MINUTES` (default 5), and on shutdown. **On startup with an empty disk the latest backup is restored automatically.** Falls back to `DISCORD_CHANNEL_ID`. |
-| `DISCORD_RESULTS_CHANNEL_ID` | Announcements: new tournaments, results, champions. |
-| `DISCORD_GUILD_ID` | Lets players from the previous version of the site log in with their old password; their profile (wins, losses, bio) is imported on first login. |
+| `OWNER_USERNAME` | The owner's username (default `okok_0020`). That account becomes owner when it signs up or logs in. |
+| `ADMIN_USERNAMES` | Optional: comma-separated usernames that start as admin. The owner can also do this in the Owner panel. |
+| `DISCORD_BOT_TOKEN` + `DISCORD_GUILD_ID` | Turns on the Discord server database (below), backups and announcements. |
+| `BACKUP_INTERVAL_MINUTES` | How often a backup goes to `#backups` (default 5). |
 | `REGISTER_LIMIT_PER_HOUR` | New accounts allowed per IP per hour (default 20). |
+
+## Discord
+
+The Discord server works as a readable copy of the website's database. In the **Owner panel → Discord server** there is a **Delete everything & rebuild** button (you have to type `DELETE EVERYTHING`). It:
+
+1. imports the old site's accounts (from the old `profile-…` channels) so nobody loses their login or stats,
+2. deletes **every** channel and category in the server,
+3. creates this layout:
+   - **🏆 FTAP ARENA** (everyone can read, only the bot posts): `#announcements`, `#results`, `#hall-of-fame`, `#leaderboard`
+   - **🗄️ FTAP DATABASE** (hidden from members): `#players`, `#teams`, `#tournaments`, `#matches`, `#match-chats`, `#backups`
+4. fills it: one message per player, team, tournament and match, edited in place whenever something changes. Match chats are saved as a text file per match. Private messages are **not** posted to Discord; they stay in the website's database and backups.
+
+Invite the bot with the **Administrator** permission (or at least Manage Channels, Manage Roles, View Channels, Send Messages, Attach Files, Read Message History).
 
 ### Deploying
 
 Any Node 18+ host works (`npm start`). The database is a single JSON file:
 
-- **With a persistent disk** (Railway volume, Render disk, a VPS): point `DATA_DIR` at it. Done.
-- **Without one** (e.g. Render free tier wipes the disk on each deploy): set `DISCORD_BOT_TOKEN` + `DISCORD_BACKUP_CHANNEL_ID`. The site restores itself from the newest backup when it boots with an empty disk.
+- **With a persistent disk** (Railway volume, Render disk, a VPS): point `DATA_DIR` at it.
+- **Without one** (e.g. Render free tier wipes the disk on each deploy): set up Discord. The site restores itself from the newest backup in `#backups` when it boots with an empty disk.
 
-Admins can also download a full JSON export from **Admin → Site**.
+The owner can also download a full JSON export from **Owner panel → Data & backups**.
 
 ## Roblox integration
 
@@ -72,18 +94,21 @@ server/
   db.js             in-memory store, atomic JSON persistence
   auth.js           scrypt passwords, session cookies, CSRF guard, roles
   realtime.js       Server-Sent Events hub (live chat, scores, notifications)
-  bracket.js        single/double elimination, byes, DQs, placements (pure)
+  bracket.js        two-sided bracket + losers bracket (also single/double elim), byes, DQs, placements (pure)
   duels.js          solo best-of-N, duo 1v1s + random decider (pure)
   rating.js         Elo + ranking points (pure)
   tournaments.js    lifecycle: registration → check-in → bracket → matches → results
   chat.js           channels (DMs, teams, match rooms, tournament lobbies)
   users.js          profiles, stats bookkeeping, badges, notifications
   roblox.js         Roblox lookups, verification, avatar/3D proxy
-  discord.js        backups, announcements, legacy account import
+  discord.js        server rebuild, database mirror, backups, announcements, old-account import
+  discord-render.js how each record looks as a Discord message
+  legacy.js         importing accounts from the old site
   routes/           HTTP API
 public/
   index.html, css/, js/   single-page app (no build step)
-  js/hero.js              the grab-and-fling ragdoll hero on the front page
+  js/hero.js              the grab-and-fling ragdoll mini-game behind the login screen
+  js/bracket.js           bracket renderer (two-sided tree + losers bracket)
 scripts/seed.js     demo data
 test/               node:test unit + end-to-end API tests
 ```

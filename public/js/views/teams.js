@@ -4,7 +4,7 @@ import { store } from '../store.js';
 import { icon } from '../icons.js';
 import { avatar, userChip, empty, toast, withBusy, confirm, modal } from '../ui.js';
 
-const COLORS = ['#c4ff4d', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
+const COLORS = ['#818cf8', '#4dd8ff', '#ff5ea8', '#ffb84d', '#9b7bff', '#3ddc97', '#ff6b4d', '#f5f5f5'];
 
 function teamCard(t) {
     const full = t.members.length >= 2;

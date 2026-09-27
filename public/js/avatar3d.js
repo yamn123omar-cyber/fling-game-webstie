@@ -109,7 +109,7 @@ export async function mountAvatar3d(el, robloxId) {
         const key = new THREE.DirectionalLight(0xffffff, 0.75);
         key.position.set(3, 6, 8);
         scene.add(key);
-        const rim = new THREE.DirectionalLight(0xc4ff4d, 0.55);
+        const rim = new THREE.DirectionalLight(0x818cf8, 0.55);
         rim.position.set(-6, 3, -6);
         scene.add(rim);
 

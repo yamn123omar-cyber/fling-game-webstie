@@ -10,7 +10,7 @@ export function tournamentCard(t) {
     else if (t.status === 'completed') when = t.champion ? html`<span class="dim">${icon('crown')} ${t.champion.name}</span>` : html`<span class="dim">Finished</span>`;
     else if (t.status === 'cancelled') when = html`<span class="dim">Cancelled</span>`;
     else when = html`<span class="dim">Starts in <b class="mono">${time(t.startAt, 'countdown')}</b></span>`;
-    return html`<a class="card link t-card" href="/t/${t.id}" style="--ta:${t.accent || '#c4ff4d'}">
+    return html`<a class="card link t-card" href="/t/${t.id}" style="--ta:${t.accent || '#818cf8'}">
         <div class="t-card-top">
             ${tStatus(t.status)}
             ${t.myEntry ? html`<span class="chip accent">${icon('check')}${t.myEntry.checkedIn || t.status === 'live' ? 'You\'re in' : 'Registered'}</span>` : ''}

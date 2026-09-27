@@ -157,7 +157,7 @@ function createTournament(input, user) {
     const t = {
         id: db.id('t'),
         name: '', description: '', rules: '', prize: '',
-        accent: '#c4ff4d',
+        accent: '#818cf8',
         mode: 'solo', format: 'twosided',
         prizes: { first: '', second: '', third: '' },
         staff: [user.id],
@@ -949,7 +949,12 @@ function forceJoin(t, by, { userId, teamId }) {
     assertManage(t, by);
     if (!['registration', 'checkin'].includes(t.status)) throw bad('You can only add people before the tournament starts');
     const u = users.get(userId || (teamId && db.data.teams[teamId] && db.data.teams[teamId].members[0]));
-    if (!u) throw bad('Pick a player or team');
+    if (!u || u.deleted) throw bad('Pick a player or team');
+    if (t.mode === 'duo' && !teamId) {
+        // Use their full team if they have one, otherwise they play as a team of 1.
+        const team = Object.values(db.data.teams).find(tm => !tm.disbanded && tm.members.length === 2 && tm.members.includes(u.id));
+        if (team) teamId = team.id;
+    }
     const entry = register(t, u, teamId ? { teamId } : { solo: true });
     entry.checkedIn = true;
     entry.addedBy = by.id;

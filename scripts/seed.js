@@ -49,12 +49,12 @@ function makeUser(username, extra = {}) {
 }
 
 const OWNER = process.env.OWNER_USERNAME || 'okok_0020';
-const admin = makeUser(OWNER, { role: 'owner', displayName: 'Owner', title: 'Runs FTAP Arena', accent: '#c4ff4d', banner: 'grid', bio: 'I run the brackets. Ping me in Discord if something breaks.' });
+const admin = makeUser(OWNER, { role: 'owner', displayName: 'Owner', title: 'Runs FTAP Arena', accent: '#818cf8', banner: 'grid', bio: 'I run the brackets. Ping me in Discord if something breaks.' });
 const ref1 = makeUser('RefRaptor', { role: 'admin', title: 'Head admin', accent: '#4dd8ff', banner: 'ocean', bio: 'Counting flings since 2021.' });
 const ref2 = makeUser('WhistleWendy', { role: 'admin', accent: '#9b7bff', banner: 'grape', title: 'Admin' });
 
 const names = [
-    ['NoobSlinger', 'Certified yeeter', '#c4ff4d', 'toxic', 'I will throw you into the void.'],
+    ['NoobSlinger', 'Certified yeeter', '#818cf8', 'toxic', 'I will throw you into the void.'],
     ['GrabGoblin', 'Grab main', '#ff5ea8', 'grape', 'Duo with @SkyToss. Hit me up for scrims.'],
     ['SkyToss', 'Ceiling enjoyer', '#4dd8ff', 'aurora', ''],
     ['RagdollRick', '', '#ffb84d', 'ember', 'Mostly play duo. Solo sometimes.'],
@@ -97,7 +97,7 @@ const teams = teamDefs.map(([name, tag, color, a, b]) => {
     return t;
 });
 const inv = { id: db.id('ti'), teamId: db.id('tm'), from: players[0].id, to: players[15].id, createdAt: new Date().toISOString() };
-const lonely = { id: inv.teamId, name: 'Slingshots', tag: 'SLG', color: '#c4ff4d', captainId: players[0].id, members: [players[0].id], createdAt: new Date().toISOString() };
+const lonely = { id: inv.teamId, name: 'Slingshots', tag: 'SLG', color: '#818cf8', captainId: players[0].id, members: [players[0].id], createdAt: new Date().toISOString() };
 db.data.teams[lonely.id] = lonely;
 db.data.teamInvites[inv.id] = inv;
 
@@ -185,7 +185,7 @@ chat.post(`tour:${t2.id}`, { userId: ref1.id, text: 'Refs are on it. Check in on
 
 // 3) + 4) Open tournaments
 const t3 = T.createTournament({
-    name: 'Sunday Showdown', mode: 'solo', maxEntrants: 32, accent: '#c4ff4d', prizes: { first: '300 Robux', second: '', third: '' },
+    name: 'Sunday Showdown', mode: 'solo', maxEntrants: 32, accent: '#818cf8', prizes: { first: '300 Robux', second: '', third: '' },
     startAt: inFuture(60 * 48 + 17), publish: true,
     description: 'Solo, two-sided bracket with second chances. Best of 3 duels, best of 5 in the final.',
     settings: { bestOf: 3, finalBestOf: 5 },

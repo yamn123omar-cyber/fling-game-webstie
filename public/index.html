@@ -3,21 +3,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>FTAP Arena · Fling Things and People tournaments</title>
-    <meta name="description" content="Competitive Fling Things and People tournaments. Solo and duo brackets, match rooms, referees, Elo rankings.">
-    <meta name="theme-color" content="#07080c">
+    <title>Fling Tournament · FTAP tournaments</title>
+    <meta name="description" content="Fling Things and People tournaments: solo and duo brackets, match rooms, admins, stats and Elo.">
+    <meta name="theme-color" content="#070b16">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Unbounded:wght@600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/app.css">
     <link rel="stylesheet" href="/css/pages.css">
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem('ft-theme')||'dark'}catch(e){}</script>
     <script type="module" src="/js/app.js"></script>
 </head>
 <body>
-    <header class="nav" id="nav"></header>
+    <header class="topbar" id="nav"></header>
+    <aside class="sidebar" id="sidebar"></aside>
+    <div id="side-scrim"></div>
     <main id="view"></main>
-    <footer class="footer" id="footer"></footer>
-    <noscript><p style="padding:40px;text-align:center">FTAP Arena needs JavaScript to run.</p></noscript>
+    <noscript><p style="padding:40px;text-align:center">Fling Tournament needs JavaScript to run.</p></noscript>
 </body>
 </html>

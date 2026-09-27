@@ -41,6 +41,11 @@ router.get('/tournaments', route(req => {
 
 router.get('/tournaments/:id', route(req => ({ tournament: T.detail(T.getT(req.params.id), req.user) })));
 
+// Admins that can be put on a tournament's admin team.
+router.get('/staff-candidates', requireRole('admin'), route(() => ({
+    admins: Object.values(db.data.users).filter(u => !u.deleted && !u.banned && ['admin', 'ref', 'owner'].includes(u.role)).map(users.summary),
+})));
+
 // Any admin (or the owner) can create a tournament; they run it.
 router.post('/tournaments', requireRole('admin'), route(req => ({ tournament: T.detail(T.createTournament(req.body || {}, req.user), req.user) })));
 
@@ -117,7 +122,7 @@ router.post('/matches/:id/:action', requireAuth, route(req => {
     return { match: T.matchDetail(m, u) };
 }));
 
-router.get('/me/matches', requireAuth, route(req => ({ matches: T.matchesForUser(req.user.id) })));
+router.get('/me/matches', requireAuth, route(req => ({ matches: T.matchesForUser(req.user.id, { includeDone: req.query.all === '1' }) })));
 
 router.get('/ref/queue', requireRole('admin'), route(req => ({
     matches: T.refQueue(req.user).map(m => ({ ...m, canRef: T.sideOfUser(db.data.tournaments[m.tournament.id], db.data.matches[m.id], req.user.id) < 0 })),

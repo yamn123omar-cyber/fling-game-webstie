@@ -5,6 +5,8 @@ import { icon } from './icons.js';
 const VOID = 'VOID';
 
 export function matchCode(m) {
+    if (m.bracket === 'F') return 'FINAL';
+    if (m.bracket === 'XL' || m.bracket === 'XR') return `LB-${m.bracket[1]}${m.round}${m.xRound > 1 ? `.${m.xRound}` : ''}-${m.index + 1}`;
     if (m.bracket === 'GF') return m.round === 1 ? 'GF' : 'GF2';
     if (m.bracket === 'P3') return '3RD';
     return `${m.bracket}${m.round}-${m.index + 1}`;
@@ -36,6 +38,7 @@ export function renderBracket(t, { myEntryId = null } = {}) {
     if (!t.matches.length) return '';
     const entries = new Map(t.entries.map(e => [e.id, e]));
     const codes = new Map(t.matches.map(m => [m.id, matchCode(m)]));
+    const byId = new Map(t.matches.map(m => [m.id, m]));
 
     const slot = (m, i) => {
         const s = m.slots[i];
@@ -44,7 +47,10 @@ export function renderBracket(t, { myEntryId = null } = {}) {
         if (s.entryId === VOID) return html`<div class="b-slot bye"><span class="seed"></span><span class="nm">${m.result && m.result.type === 'skipped' ? '—' : 'BYE'}</span></div>`;
         if (!s.entryId) {
             const src = s.source;
-            const hint = src.type === 'seed' ? `Seed ${src.seed}` : `${src.type === 'winner' ? 'Winner' : 'Loser'} of ${codes.get(src.matchId) || '?'}`;
+            const from = src.matchId && byId.get(src.matchId);
+            const hint = src.type === 'seed' ? `Seed ${src.seed}`
+                : from && from.bracket[0] === 'X' && m.bracket[0] !== 'X' ? 'Losers bracket winner'
+                : `${src.type === 'winner' ? 'Winner' : 'Loser'} of ${codes.get(src.matchId) || '?'}`;
             return html`<div class="b-slot tbd"><span class="seed"></span><span class="nm">${hint}</span></div>`;
         }
         const e = entries.get(s.entryId);
@@ -64,10 +70,12 @@ export function renderBracket(t, { myEntryId = null } = {}) {
             : m.status === 'ready' ? html`<span class="b-ready">READY</span>`
             : m.status === 'scheduled' && m.scheduledAt ? html`<span class="b-time">${time(m.scheduledAt, 'countdown')}</span>` : '';
         return html`<a class="b-match ${ghost ? 'ghost' : ''} ${mine ? 'mine' : ''} st-${m.status}" data-id="${m.id}" href="${ghost ? '#' : `/m/${m.id}`}" ${ghost ? html`tabindex="-1"` : ''}>
-            <div class="b-top"><span class="b-code mono">${matchCode(m)}</span>${top}</div>
+            <div class="b-top"><span class="b-code mono">${matchCode(m)}</span>${m.waiting ? html`<span class="b-flag" title="The second spot goes to the winner of the losers bracket">comeback</span>` : ''}${top}</div>
             ${slot(m, 0)}${slot(m, 1)}
         </a>`;
     };
+
+    if (t.format === 'twosided') return twoSided(t, card);
 
     return html`<div class="bracket-wrap">${sections(t).map(sec => {
         const tallest = Math.max(...sec.rounds.map(r => r.length));
@@ -86,8 +94,104 @@ export function renderBracket(t, { myEntryId = null } = {}) {
     })}</div>`;
 }
 
+function byRound(list) {
+    const map = new Map();
+    for (const m of list) {
+        if (!map.has(m.round)) map.set(m.round, []);
+        map.get(m.round).push(m);
+    }
+    return [...map.entries()].sort((a, b) => a[0] - b[0]).map(([, ms]) => ms.sort((a, b) => a.index - b.index));
+}
+
+// Two-sided tree: left side → Final in the middle ← right side, with each
+// side's losers bracket (second chances) underneath.
+function twoSided(t, card) {
+    const of = b => t.matches.filter(m => m.bracket === b);
+    const L = byRound(of('L')), R = byRound(of('R'));
+    const final = of('F')[0];
+    const third = of('P3')[0];
+    const tallest = Math.max(1, ...L.map(r => r.length), ...R.map(r => r.length));
+    const colHead = r => (r[0].sideFinal ? 'Side final' : `Round ${r[0].round}`);
+    const col = r => html`<div class="b-col"><div class="b-col-head">${colHead(r)}</div><div class="b-col-body">${r.map(card)}</div></div>`;
+    const champ = t.champion;
+
+    const comebacks = side => {
+        const xs = of(`X${side}`);
+        if (!xs.length) return '';
+        const sideMatches = side === 'L' ? L.flat() : R.flat();
+        const rounds = byRound(xs);
+        return html`<section class="b-section lb">
+            <div class="b-title">${icon('refresh')}Losers bracket · ${side === 'L' ? 'left' : 'right'} side</div>
+            <p class="lb-help">Lost a match? You get a second chance: the losers of a round fight it out and the winner takes the open spot in the next round.</p>
+            ${rounds.map(list => {
+                const r = list[0].round;
+                const target = sideMatches.find(m => m.round === r && m.waiting);
+                const cols = new Map();
+                for (const m of list) { if (!cols.has(m.xRound)) cols.set(m.xRound, []); cols.get(m.xRound).push(m); }
+                return html`<div class="lb-round">
+                    <div class="lb-head"><b>Round ${r} losers</b>${target ? html`<span class="dim">winner goes to <span class="mono accent">${matchCode(target)}</span></span>` : ''}</div>
+                    <div class="b-scroll" data-drag><div class="lb-cols">${[...cols.values()].map(ms => html`<div class="b-col"><div class="b-col-body">${ms.sort((a, b) => a.index - b.index).map(card)}</div></div>`)}</div></div>
+                </div>`;
+            })}
+        </section>`;
+    };
+
+    return html`<div class="bracket-wrap ts">
+        <section class="b-section ts-main">
+            <div class="b-scroll ts-scroll" data-drag>
+                <div class="ts-board" style="--rows:${tallest}">
+                    <svg class="b-lines ts-lines" aria-hidden="true"></svg>
+                    <div class="ts-side left">${L.map(col)}</div>
+                    <div class="ts-center">
+                        <div class="ts-trophy ${champ ? 'won' : ''}">${icon('trophy')}<span>${champ ? 'Champion' : 'Final'}</span>${champ ? html`<b class="display">${champ.name}</b>` : ''}</div>
+                        ${final ? html`<div class="ts-final">${card(final)}</div>` : ''}
+                        ${third ? html`<div class="ts-third"><div class="b-col-head">3rd place</div>${card(third)}</div>` : ''}
+                    </div>
+                    <div class="ts-side right">${R.slice().reverse().map(col)}</div>
+                </div>
+            </div>
+        </section>
+        ${t.matches.some(m => m.bracket[0] === 'X') ? html`<div class="grid grid-2 lb-grid">${comebacks('L')}${comebacks('R')}</div>` : ''}
+    </div>`;
+}
+
+// Connectors for the two-sided board: lines run towards the middle.
+function drawTwoSided(root) {
+    for (const board of $$('.ts-board', root)) {
+        const svg = board.querySelector('.ts-lines');
+        const z = Number(board.dataset.z || 1);
+        const base = board.getBoundingClientRect();
+        svg.setAttribute('width', board.scrollWidth);
+        svg.setAttribute('height', board.scrollHeight);
+        const cards = new Map($$('.b-match', board).map(el => [el.dataset.id, el]));
+        let d = '', dHi = '';
+        for (const el of cards.values()) {
+            const m = el._m;
+            if (!m) continue;
+            m.slots.forEach((s, i) => {
+                if (!s.source || s.source.type !== 'winner') return;
+                const src = cards.get(s.source.matchId);
+                if (!src) return;
+                const a = src.getBoundingClientRect();
+                const rows = el.querySelectorAll('.b-slot');
+                const b = (rows[i] || el).getBoundingClientRect();
+                const rightward = a.left + a.width / 2 < b.left + b.width / 2;
+                const x1 = ((rightward ? a.right : a.left) - base.left) / z;
+                const x2 = ((rightward ? b.left : b.right) - base.left) / z;
+                const y1 = (a.top + a.height / 2 - base.top) / z + 8;
+                const y2 = (b.top + b.height / 2 - base.top) / z;
+                const xm = x1 + (x2 - x1) / 2;
+                const path = `M${x1} ${y1}H${xm}V${y2}H${x2}`;
+                if (src.classList.contains('mine') && el.classList.contains('mine')) dHi += path; else d += path;
+            });
+        }
+        svg.innerHTML = `<path d="${d}" class="ln"/><path d="${dHi}" class="ln hi"/>`;
+    }
+}
+
 // Draw elbow connectors between matches in the same section.
 export function drawLines(root) {
+    drawTwoSided(root);
     for (const sec of $$('.b-section', root)) {
         const cols = sec.querySelector('.b-cols');
         const svg = sec.querySelector('.b-lines');
@@ -127,9 +231,10 @@ export function mountBracket(root, t) {
     for (const el of $$('.b-match', root)) el._m = byId.get(el.dataset.id);
     const redraw = () => requestAnimationFrame(() => drawLines(root));
     redraw();
+    window.addEventListener('resize', redraw);
     document.fonts && document.fonts.ready.then(redraw);
     const ro = new ResizeObserver(redraw);
-    for (const c of $$('.b-cols', root)) ro.observe(c);
+    for (const c of $$('.b-cols, .ts-board', root)) ro.observe(c);
 
     // Highlight an entrant's path on hover.
     const over = e => {
@@ -155,5 +260,5 @@ export function mountBracket(root, t) {
     });
     root.addEventListener('click', e => { const a = e.target.closest('a.b-match.ghost'); if (a) e.preventDefault(); });
 
-    return () => { ro.disconnect(); root.removeEventListener('mouseover', over); drags.forEach(f => f()); };
+    return () => { ro.disconnect(); window.removeEventListener('resize', redraw); root.removeEventListener('mouseover', over); drags.forEach(f => f()); };
 }

@@ -5,7 +5,7 @@
 
 const SKINS = [
     { head: '#f5cd30', torso: '#0d69ac', arms: '#f5cd30', legs: '#a4bd47' }, // classic noob
-    { head: '#f2d2a9', torso: '#c4ff4d', arms: '#f2d2a9', legs: '#1b1f2a' },
+    { head: '#f2d2a9', torso: '#818cf8', arms: '#f2d2a9', legs: '#1b1f2a' },
     { head: '#eab892', torso: '#e5484d', arms: '#e5484d', legs: '#2b2f3a' },
     { head: '#8d5524', torso: '#4d8dff', arms: '#8d5524', legs: '#e6e6e6' },
     { head: '#ffe0bd', torso: '#ff4d8d', arms: '#ff4d8d', legs: '#3a2e5a' },
@@ -24,7 +24,7 @@ const STICKS = [[1, 2], [2, 3], [3, 4], [4, 1], [1, 3], [2, 4], [0, 1], [0, 2], 
 const RADIUS = [0.75, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.5, 0.5];
 const WORDS = ['FLUNG!', 'YEET!', 'SENT IT!', 'BYE!', 'OOF', 'SPLAT!', 'FLING!'];
 
-export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
+export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint = null, game = false } = {}) {
     const ctx = canvas.getContext('2d');
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let W = 0, H = 0, dpr = 1, u = 12, floor = 0;
@@ -41,6 +41,10 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
     let raf = 0;
     let flings = 0;
     let shake = 0;
+    let landX = 0;
+    let playR = 0;      // mini-game: everything left of this is water
+    const ring = { x: 0, y: 0, r: 0, phase: 0, flash: 0 };
+    const splashes = [];
 
     function resize() {
         const r = canvas.getBoundingClientRect();
@@ -51,6 +55,9 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         canvas.height = Math.round(H * dpr);
         u = Math.max(9, Math.min(24, W / 62));
         floor = H - Math.max(28, H * 0.075);
+        landX = game ? Math.max(70, W * (W < 700 ? 0.16 : 0.15)) : 0;
+        playR = game && W > 900 ? W * 0.62 : W; // keep the game clear of the login card
+        if (game) placeRing();
         for (const d of dolls) d.u = u;
     }
 
@@ -62,9 +69,9 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
 
     function spawn() {
         dolls = [];
-        const n = W < 640 ? 3 : W < 1000 ? 4 : 5;
+        const n = game ? (W < 640 ? 3 : 4) : W < 640 ? 3 : W < 1000 ? 4 : 5;
         // On wide screens keep them to the right of the headline.
-        const [from, span] = W > 1000 ? [0.5, 0.46] : [0.06, 0.88];
+        const [from, span] = game ? [landX / W + 0.05, (playR - landX) / W - 0.08] : W > 1000 ? [0.5, 0.46] : [0.06, 0.88];
         for (let i = 0; i < n; i++) {
             const x = W * (from + span * (i + 0.5) / n) + (Math.random() - 0.5) * u;
             const y = floor - 3.2 * u - Math.random() * u * 3;
@@ -128,7 +135,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         if (held) { d.stand = 0; d.standing = false; return; }
         if (t < d.calmAt) { d.standing = false; return; }
         const P = d.pts;
-        const onGround = Math.max(P[7].y, P[8].y) > floor - u * 1.3;
+        const onGround = Math.max(P[7].y, P[8].y) > floor - u * 1.3 && P[3].x > landX;
         if (!onGround) { d.standing = false; return; }
         d.stand = Math.min(1, d.stand + 0.008);
         d.standing = d.stand > 0.35;
@@ -150,7 +157,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         const r = p.r * u;
         const vx = p.x - p.px, vy = p.y - p.py;
         let hit = 0, hx = p.x, hy = p.y;
-        if (p.y > floor - r) {
+        if (p.y > floor - r && p.x > landX) {
             p.y = floor - r;
             hit = Math.abs(vy);
             p.py = p.y + vy * 0.35;
@@ -189,7 +196,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         for (let k = 0; k < n; k++) {
             const a = Math.random() * Math.PI * 2;
             const v = 80 + Math.random() * speed * 0.25;
-            sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: 1, c: Math.random() < 0.5 ? '#c4ff4d' : '#ffffff' });
+            sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 120, life: 1, c: Math.random() < 0.5 ? '#a5b4fc' : '#f9a8d4' });
         }
         if (speed > 1500 && t - d.lastFling > 700 && !(grab && grab.doll === d)) {
             d.lastFling = t;
@@ -198,6 +205,90 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
             if (!reduced) shake = Math.min(10, speed / 350);
             texts.push({ x: Math.max(60, Math.min(W - 60, x)), y: Math.min(y, floor - 30), text: WORDS[Math.floor(Math.random() * WORDS.length)], life: 1 });
         }
+    }
+
+
+    // ── Mini-game: fling dolls into the water, bonus through the ring ───
+    function placeRing() {
+        ring.r = u * 2.6;
+        ring.x = landX + (playR - landX) * (0.3 + Math.random() * 0.55);
+        ring.baseY = floor - H * (0.38 + Math.random() * 0.22);
+        ring.y = ring.baseY;
+    }
+    function respawn(d, t) {
+        const x = landX + (playR - landX) * (0.3 + Math.random() * 0.6);
+        const y = -u * 4;
+        d.pts.forEach((p, i) => { p.x = p.px = x + BODY[i][0] * u; p.y = p.py = y + BODY[i][1] * u; });
+        knock(d, t, 600);
+        d.by = null; d.ringAt = 0;
+    }
+    function score(pts, label, x, y, c) {
+        texts.push({ x: Math.max(60, Math.min(W - 60, x)), y, text: label, life: 1.2, c });
+        onScore(pts);
+    }
+    function gameTick(t) {
+        if (!game) return;
+        ring.phase += 0.012;
+        ring.y = ring.baseY + Math.sin(ring.phase) * u * 2.2;
+        ring.flash *= 0.94;
+        for (const d of dolls) {
+            const P = d.pts;
+            const cx = (P[1].x + P[3].x) / 2, cy = (P[1].y + P[3].y) / 2;
+            const held = grab && grab.doll === d;
+            // Through the ring (while flying, not while carried)
+            if (!held && d.by && t - (d.ringAt || 0) > 1200 && Math.hypot(cx - ring.x, cy - ring.y) < ring.r * 0.8) {
+                d.ringAt = t;
+                ring.flash = 1;
+                if (d.by === 'player') score(3, 'RING +3', ring.x, ring.y - ring.r - 10, '#fbbf24');
+                for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2; sparks.push({ x: ring.x + Math.cos(a) * ring.r, y: ring.y + Math.sin(a) * ring.r, vx: Math.cos(a) * 260, vy: Math.sin(a) * 260, life: 1, c: '#fbbf24' }); }
+                setTimeout(placeRing, 500);
+            }
+            // Into the water
+            if (cy > floor + u * 1.5 && cx < landX) {
+                for (let k = 0; k < 22; k++) splashes.push({ x: cx + (Math.random() - 0.5) * u * 2, y: floor + u * 0.4, vx: (Math.random() - 0.5) * 260, vy: -300 - Math.random() * 520, life: 1 });
+                if (d.by === 'player') score(1, 'SPLASH +1', landX * 0.5 + 30, floor - u * 3, '#60a5fa');
+                respawn(d, t);
+            }
+            if (cy > H + u * 6) respawn(d, t);
+        }
+    }
+    function drawGame(t) {
+        if (!game) return;
+        // water
+        const wave = k => floor + u * 0.4 + Math.sin(t / 500 + k / 18) * u * 0.18;
+        const g = ctx.createLinearGradient(0, floor, 0, H);
+        g.addColorStop(0, 'rgba(56,189,248,0.55)');
+        g.addColorStop(1, 'rgba(30,64,175,0.55)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= landX; x += 6) ctx.lineTo(x, wave(x));
+        ctx.lineTo(landX, H);
+        ctx.closePath();
+        ctx.fill();
+        // cliff edge
+        ctx.fillStyle = 'rgba(129,140,248,0.25)';
+        ctx.fillRect(landX - 2, floor, 4, H - floor);
+        // splash drops
+        ctx.fillStyle = '#7dd3fc';
+        for (let i = splashes.length - 1; i >= 0; i--) {
+            const s = splashes[i];
+            s.vy += 1400 / 60; s.x += s.vx / 60; s.y += s.vy / 60; s.life -= 0.025;
+            if (s.life <= 0 || s.y > H) { splashes.splice(i, 1); continue; }
+            ctx.globalAlpha = s.life;
+            ctx.beginPath(); ctx.arc(s.x, s.y, 2.5, 0, 7); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        // ring
+        ctx.save();
+        ctx.lineWidth = u * 0.45;
+        ctx.strokeStyle = ring.flash > 0.1 ? '#fbbf24' : 'rgba(251,191,36,0.75)';
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 12 + ring.flash * 30;
+        ctx.beginPath();
+        ctx.ellipse(ring.x, ring.y, ring.r * 0.55, ring.r, 0, 0, 7);
+        ctx.stroke();
+        ctx.restore();
     }
 
     // ── Input ───────────────────────────────────────────────────────────
@@ -257,6 +348,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
             }
         }
         knock(grab.doll, performance.now(), 700);
+        grab.doll.by = 'player';
         grab = null;
         canvas.style.cursor = 'grab';
     }
@@ -267,7 +359,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         const d = dolls[Math.floor(Math.random() * dolls.length)];
         const i = 0;
         knock(d, t, 1200);
-        const dir = d.pts[0].x < W / 2 ? 1 : -1;
+        const dir = game ? -1 : d.pts[0].x < W / 2 ? 1 : -1;
         const vx = dir * (1600 + Math.random() * 1600);
         const vy = -(1400 + Math.random() * 900);
         const step = 1 / 60 / SUB;
@@ -276,6 +368,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
             p.px = p.x - vx * step * m;
             p.py = p.y - vy * step * m;
         }
+        d.by = 'ghost';
         ghost = { doll: d, i, t, x: d.pts[0].x - dir * 140, y: d.pts[0].y - 110 };
     }
 
@@ -360,12 +453,12 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         }
         // floor
         const g = ctx.createLinearGradient(0, floor, 0, H);
-        g.addColorStop(0, 'rgba(196,255,77,0.10)');
-        g.addColorStop(1, 'rgba(196,255,77,0)');
+        g.addColorStop(0, 'rgba(129,140,248,0.12)');
+        g.addColorStop(1, 'rgba(129,140,248,0)');
         ctx.fillStyle = g;
-        ctx.fillRect(0, floor, W, H - floor);
-        ctx.fillStyle = 'rgba(196,255,77,0.55)';
-        ctx.fillRect(0, floor, W, 1.5);
+        ctx.fillRect(landX, floor, W - landX, H - floor);
+        ctx.fillStyle = 'rgba(129,140,248,0.6)';
+        ctx.fillRect(landX, floor, W - landX, 1.5);
         // shadows
         for (const d of dolls) {
             const cx = (d.pts[3].x + d.pts[4].x) / 2;
@@ -376,21 +469,22 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
             ctx.ellipse(cx, floor + 2, u * 2.2 * (0.5 + k * 0.5), u * 0.35, 0, 0, 7);
             ctx.fill();
         }
+        drawGame(t);
         for (const d of dolls) drawDoll(d);
 
         // grab beam
         const beam = (x1, y1, x2, y2, alpha) => {
             ctx.save();
             ctx.globalAlpha = alpha;
-            ctx.strokeStyle = '#c4ff4d';
-            ctx.shadowColor = '#c4ff4d';
+            ctx.strokeStyle = '#c084fc';
+            ctx.shadowColor = '#ec4899';
             ctx.shadowBlur = 14;
             ctx.lineWidth = 2.5;
             ctx.setLineDash([7, 6]);
             ctx.lineDashOffset = -t / 20;
             ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
             ctx.setLineDash([]);
-            ctx.fillStyle = '#c4ff4d';
+            ctx.fillStyle = '#f472b6';
             ctx.beginPath(); ctx.arc(x2, y2, 4.5, 0, 7); ctx.fill();
             ctx.beginPath(); ctx.arc(x1, y1, 7, 0, 7); ctx.globalAlpha = alpha * 0.35; ctx.fill();
             ctx.restore();
@@ -420,12 +514,12 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
             if (f.life <= 0) { texts.splice(i, 1); continue; }
             ctx.save();
             ctx.globalAlpha = Math.min(1, f.life * 1.6);
-            ctx.font = `800 ${Math.round(u * 1.9)}px Unbounded, Inter, sans-serif`;
+            ctx.font = `800 ${Math.round(u * 1.9)}px Outfit, Inter, sans-serif`;
             ctx.textAlign = 'center';
             ctx.lineWidth = 5;
-            ctx.strokeStyle = 'rgba(7,8,12,0.9)';
+            ctx.strokeStyle = 'rgba(7,11,22,0.9)';
             ctx.strokeText(f.text, f.x, f.y);
-            ctx.fillStyle = '#c4ff4d';
+            ctx.fillStyle = f.c || '#a5b4fc';
             ctx.fillText(f.text, f.x, f.y);
             ctx.restore();
         }
@@ -436,6 +530,7 @@ export function mountHero(canvas, { onFling = () => {}, hint = null } = {}) {
         if (!running || !visible) return;
         ghostFling(t);
         step(t);
+        gameTick(t);
         draw(t);
         raf = requestAnimationFrame(frame);
     }
