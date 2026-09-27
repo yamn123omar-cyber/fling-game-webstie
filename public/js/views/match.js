@@ -64,9 +64,7 @@ function centerBlock(m) {
 
 function duelList(m) {
     if (!m.duels.length) {
-        const plan = m.mode === 'duo'
-            ? 'Once both sides check in, lineups lock: best vs best, second vs second. At 1–1 the system picks a decider.'
-            : `Best of ${m.bestOf} duels, first to ${m.firstTo} kills each. Lineups lock once both players check in.`;
+        const plan = m.mode === 'duo' ? `2 duels, first to ${m.firstTo} kills` : `Best of ${m.bestOf}, first to ${m.firstTo} kills`;
         return html`<div class="card"><div class="card-head"><h3>Duels</h3></div><p class="dim">${plan}</p></div>`;
     }
     return html`<div class="card"><div class="card-head"><h3>Duels</h3><span class="spacer"></span><span class="chip">${icon('target')}First to ${m.firstTo}</span></div>
@@ -90,7 +88,7 @@ function duelList(m) {
 function refConsole(m) {
     const v = m.viewer;
     if (!v.isStaff) return '';
-    if (!v.canRef) return html`<div class="card ref-card"><div class="card-head">${icon('whistle')}<h3>Admin</h3></div><p class="dim">You're playing in this match, so another admin has to score it.</p></div>`;
+    if (!v.canRef) return html`<div class="card ref-card"><div class="card-head">${icon('whistle')}<h3>Admin</h3></div><p class="dim">You're playing in this one.</p></div>`;
     const mine = v.isRef || v.isAdmin;
     const active = ['scheduled', 'ready', 'live'].includes(m.status);
     const cur = m.duels.find(d => d.winner === null);
@@ -98,12 +96,12 @@ function refConsole(m) {
     return html`<div class="card ref-card" data-keep="${key}">
         <div class="card-head">${icon('whistle')}<h3>Score this match</h3><span class="spacer"></span>
             ${m.ref ? html`<span class="chip blue">${m.ref.displayName}${v.isRef ? ' (you)' : ''}</span>` : html`<span class="chip">Unclaimed</span>`}</div>
-        ${active && !m.ref ? html`<p class="dim" style="margin-bottom:12px">Take the match, join the players' Roblox server, and watch each duel. You enter the kills — players can't.</p>
+        ${active && !m.ref ? html`
             <button class="btn primary block" data-act="claim">${icon('whistle')}Take this match</button>` : ''}
-        ${active && m.ref && !mine ? html`<p class="dim">${m.ref.displayName} is refereeing this match.</p>` : ''}
-        ${mine && m.status === 'scheduled' ? html`<div class="inset dim">Waiting for check-ins. Deadline ${time(m.deadlineAt, 'clock')} — no-shows forfeit automatically.</div>` : ''}
+        ${active && m.ref && !mine ? html`<p class="dim">${m.ref.displayName} is scoring this.</p>` : ''}
+        ${mine && m.status === 'scheduled' ? html`<div class="inset dim">Waiting for check-ins · ${time(m.deadlineAt, 'clock')}</div>` : ''}
         ${mine && m.status === 'ready' ? html`<button class="btn primary lg block" data-act="start">${icon('play')}Start match</button>
-            <p class="hint" style="margin-top:8px">Start once you're in the server and both sides are ready.</p>` : ''}
+            ` : ''}
         ${mine && m.status === 'live' && cur ? html`<div class="tally" data-n="${cur.n}">
             <div class="tally-head">${cur.kind === 'decider' ? 'Decider' : `Duel ${cur.n}`} · first to ${m.firstTo}</div>
             <div class="tally-row">
@@ -115,7 +113,7 @@ function refConsole(m) {
             </div>
             <button class="btn primary block lg" data-act="duel">${icon('check')}Confirm duel result</button>
         </div>` : ''}
-        ${mine && m.status === 'live' && !cur ? html`<div class="inset dim">All duels have results. Undo the last one to correct it.</div>` : ''}
+        ${mine && m.status === 'live' && !cur ? html`<div class="inset dim">All duels done.</div>` : ''}
         ${mine && m.status === 'live' && m.duels.some(d => d.winner !== null) ? html`<button class="btn ghost sm" data-act="undo" style="margin-top:10px">${icon('undo')}Undo last duel</button>` : ''}
         ${mine && active ? html`<details class="ref-more"><summary>More actions</summary>
             <div class="col" style="margin-top:12px">
@@ -128,7 +126,7 @@ function refConsole(m) {
                 ${m.ref && m.status !== 'live' ? html`<button class="btn ghost sm" data-act="release">Stop refereeing</button>` : ''}
             </div></details>` : ''}
         ${m.status === 'done' && (v.isAdmin || v.isRef) && m.result && ['played', 'forfeit', 'double_forfeit'].includes(m.result.type) ? html`<button class="btn sm" data-act="reopen">${icon('undo')}Reopen result</button>
-            <p class="hint" style="margin-top:6px">Reverts rating changes. Only possible while later matches haven't used this result.</p>` : ''}
+            ` : ''}
     </div>`;
 }
 
@@ -144,17 +142,17 @@ function playerActions(m) {
     if (m.status === 'scheduled') {
         const opens = new Date(m.checkinOpensAt).getTime();
         out.push(html`<div class="m-actions">
-            ${v.checkedIn ? html`<div class="checked">${icon('checkCircle')}<div><b>You're checked in</b><span>Waiting for everyone else. Sort out the server in the chat.</span></div></div>`
+            ${v.checkedIn ? html`<div class="checked">${icon('checkCircle')}<div><b>Checked in</b></div></div>`
                 : Date.now() < opens ? html`<button class="btn lg" disabled>${icon('clock')}Check-in opens ${time(m.checkinOpensAt, 'clock')}</button>`
-                : html`<button class="btn primary xl pulse" data-act="checkin">${icon('check')}Check in — I'm here</button>`}
+                : html`<button class="btn primary xl pulse" data-act="checkin">${icon('check')}Check in</button>`}
             <span class="spacer"></span>
-            <button class="btn" data-act="propose">${icon('calendar')}Propose new time</button>
+            <button class="btn" data-act="propose">${icon('calendar')}New time</button>
             <button class="btn" data-act="callref">${icon('bell')}Call an admin</button>
         </div>`);
     }
     if (['ready', 'live'].includes(m.status)) {
-        out.push(html`<div class="m-actions"><div class="checked">${icon(m.status === 'live' ? 'swords' : 'whistle')}<div><b>${m.status === 'live' ? 'Match in progress' : m.ref ? `${m.ref.displayName} is your ref` : 'Waiting for a referee'}</b>
-            <span>${m.ref ? html`Add ${m.ref.robloxName ? html`<b>${m.ref.robloxName}</b>` : 'them'} to your Roblox server so they can watch.` : 'An admin will take your match shortly. You can ping one if it takes a while.'}</span></div></div>
+        out.push(html`<div class="m-actions"><div class="checked">${icon(m.status === 'live' ? 'swords' : 'whistle')}<div><b>${m.status === 'live' ? 'Match in progress' : m.ref ? `${m.ref.displayName} is scoring` : 'Waiting for an admin'}</b>
+            ${m.ref && m.ref.robloxName ? html`<span>Roblox: <b>${m.ref.robloxName}</b></span>` : ''}</div></div>
             <span class="spacer"></span><button class="btn" data-act="callref">${icon('bell')}Call an admin</button></div>`);
     }
     return html`${out}`;
@@ -171,23 +169,6 @@ function resultCard(m) {
                 <span class="delta mono ${c.elo > 0 ? 'up' : c.elo < 0 ? 'down' : ''}">${signed(c.elo)} Elo</span>
                 <span class="delta mono ${c.rp > 0 ? 'up' : c.rp < 0 ? 'down' : ''}">${signed(c.rp)} RP</span></div>`;
         })}</div></div>`;
-}
-
-function timeline(m) {
-    const items = [
-        m.scheduledAt && ['Scheduled for', m.scheduledAt],
-        m.checkinOpensAt && m.status !== 'done' && ['Check-in opens', m.checkinOpensAt],
-        m.deadlineAt && m.status !== 'done' && ['No-show deadline', m.deadlineAt],
-        m.readyAt && ['Lineups locked', m.readyAt],
-        m.startedAt && ['Went live', m.startedAt],
-        m.completedAt && ['Finished', m.completedAt],
-    ].filter(Boolean);
-    return html`<div class="card"><div class="card-head"><h3>Match log</h3></div>
-        <dl class="facts">${items.map(([k, v]) => html`<dt>${k}</dt><dd>${time(v)}</dd>`)}
-            <dt>Tournament</dt><dd><a class="accent" href="/t/${m.tournament.id}">${m.tournament.name}</a></dd>
-            <dt>Round</dt><dd>${m.label}</dd>
-            <dt>Format</dt><dd>${m.mode === 'duo' ? `2 duels + decider, first to ${m.firstTo}` : `Best of ${m.bestOf}, first to ${m.firstTo}`}</dd>
-        </dl></div>`;
 }
 
 export default {
@@ -208,7 +189,6 @@ export default {
                     ${refConsole(m)}
                     ${duelList(m)}
                     ${resultCard(m)}
-                    ${timeline(m)}
                 </div>
                 <div class="col" style="gap:18px">
                     ${m.viewer.canChat ? html`<div class="chat-slot" data-keep="mchat-${m.id}"></div>`

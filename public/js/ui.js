@@ -92,8 +92,9 @@ export const modeChip = mode => (mode === 'duo'
     : html`<span class="chip pink">${icon('user')}Solo 1v1</span>`);
 export const formatLabel = f => (f === 'twosided' ? 'Two-sided bracket' : f === 'double' ? 'Double elimination' : 'Single elimination');
 
-export function empty(iconName, title, text = '', action = '') {
-    return html`<div class="empty">${icon(iconName)}<b>${title}</b>${text ? html`<span>${text}</span>` : ''}${action}</div>`;
+// Empty states are just an icon, a title and maybe a button — no explanations.
+export function empty(iconName, title, _text = '', action = '') {
+    return html`<div class="empty">${icon(iconName)}<b>${title}</b>${action}</div>`;
 }
 
 export function skeleton() {

@@ -9,7 +9,7 @@ npm install
 npm start            # http://localhost:3000
 ```
 
-The first screen is **Log in / Create account**, with a small FTAP mini-game behind it: grab the ragdolls and fling them into the water (+1) or through the ring (+3).
+The first screen is **Log in / Create account**.
 
 Want to click around with realistic data first?
 
@@ -107,7 +107,6 @@ server/
   routes/           HTTP API
 public/
   index.html, css/, js/   single-page app (no build step)
-  js/hero.js              the grab-and-fling ragdoll mini-game behind the login screen
   js/bracket.js           bracket renderer (two-sided tree + losers bracket)
 scripts/seed.js     demo data
 test/               node:test unit + end-to-end API tests

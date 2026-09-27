@@ -1,11 +1,10 @@
-// Login / create account — the front door, over a looping FTAP ragdoll animation.
+// Login / create account — the front door, over a slow moving glow.
 import { html, $ } from '../lib.js';
 import { post } from '../api.js';
 import { store } from '../store.js';
 import { navigate } from '../router.js';
 import { logoMark } from '../icons.js';
 import { toast } from '../ui.js';
-import { mountHero } from '../hero.js';
 
 export default {
     auth: false,
@@ -14,10 +13,9 @@ export default {
         const reg = ctx.path === '/register';
         const next = ctx.query.next ? `?next=${encodeURIComponent(ctx.query.next)}` : '';
         return html`<div class="gate">
-            <canvas class="gate-canvas" aria-hidden="true"></canvas>
+            <div class="glow" aria-hidden="true"><i></i><i></i><i></i></div>
             <div class="gate-card">
                 <a class="logo" href="/login">${logoMark}<span>FLING <em>TOURNAMENT</em></span></a>
-                <p class="dim gate-sub">Fling Things and People tournaments — solo &amp; duo brackets, stats and chat.</p>
                 <div class="seg big gate-tabs" role="tablist">
                     <a href="/login${next}" role="tab" class="${reg ? '' : 'on'}" aria-selected="${reg ? 'false' : 'true'}">Log in</a>
                     <a href="/register${next}" role="tab" class="${reg ? 'on' : ''}" aria-selected="${reg ? 'true' : 'false'}">Create account</a>
@@ -26,15 +24,13 @@ export default {
                     <label class="field"><span>Username</span>
                         <input class="input" name="username" autocomplete="username" required minlength="3" maxlength="24" placeholder="${reg ? 'Pick a username' : 'Your username'}" autocapitalize="off" spellcheck="false"></label>
                     ${reg ? html`<label class="field"><span>Roblox username <small class="muted">(optional)</small></span>
-                        <input class="input" name="roblox" maxlength="20" placeholder="So people can find you in FTAP" autocapitalize="off" spellcheck="false"></label>` : ''}
+                        <input class="input" name="roblox" maxlength="20" autocapitalize="off" spellcheck="false"></label>` : ''}
                     <label class="field"><span>Password</span>
                         <input class="input" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" required placeholder="${reg ? 'At least 6 characters' : 'Your password'}"></label>
                     ${reg ? html`<label class="field"><span>Confirm password</span>
                         <input class="input" name="confirm" type="password" autocomplete="new-password" required placeholder="Type it again"></label>` : ''}
                     <div class="form-error" role="alert"></div>
                     <button class="btn primary lg block" type="submit">${reg ? 'Create account' : 'Log in'}</button>
-                    <p class="muted gate-note">${reg ? 'You can link your Roblox account (and show your skin) after signing up.'
-                        : 'Had an account on the old site? Log in with your old username and password — your stats come with you.'}</p>
                 </form>
             </div>
         </div>`;
@@ -45,8 +41,6 @@ export default {
         const form = $('form', root);
         const err = $('.form-error', form);
         if (matchMedia('(min-width: 700px)').matches) $('input', form).focus();
-
-        const stop = mountHero($('.gate-canvas', root), { ambient: true });
 
         form.addEventListener('submit', async e => {
             e.preventDefault();
@@ -72,6 +66,5 @@ export default {
                 btn.classList.remove('loading');
             }
         });
-        return stop;
     },
 };

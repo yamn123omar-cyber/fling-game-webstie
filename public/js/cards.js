@@ -1,7 +1,7 @@
 // Cards reused across pages.
 import { html, time, fmtInt } from './lib.js';
 import { icon } from './icons.js';
-import { tStatus, modeChip, formatLabel, entryChip, avatar, mStatus } from './ui.js';
+import { tStatus, modeChip, entryChip, avatar, mStatus } from './ui.js';
 
 export function tournamentCard(t) {
     const pctFull = Math.min(100, Math.round((t.entrantCount / t.maxEntrants) * 100));
@@ -13,12 +13,11 @@ export function tournamentCard(t) {
     return html`<a class="card link t-card" href="/t/${t.id}" style="--ta:${t.accent || '#818cf8'}">
         <div class="t-card-top">
             ${tStatus(t.status)}
-            ${t.myEntry ? html`<span class="chip accent">${icon('check')}${t.myEntry.checkedIn || t.status === 'live' ? 'You\'re in' : 'Registered'}</span>` : ''}
+            ${t.myEntry ? html`<span class="chip accent">${icon('check')}${t.myEntry.checkedIn || t.status === 'live' ? 'In' : 'Joined'}</span>` : ''}
         </div>
         <h3>${t.name}</h3>
-        <div class="row wrap-ok" style="gap:6px">${modeChip(t.mode)}<span class="chip">${formatLabel(t.format)}</span>${t.prize ? html`<span class="chip gold">${icon('trophy')}${t.prize}</span>` : ''}</div>
+        <div class="row wrap-ok" style="gap:6px">${modeChip(t.mode)}${t.prize ? html`<span class="chip gold">${icon('trophy')}${t.prize}</span>` : ''}</div>
         <div class="t-card-foot">
-            <div class="t-meta">${icon('calendar')}<span>${time(t.startAt)}</span></div>
             <div class="t-meta">${icon('users')}<span><b>${t.entrantCount}</b>/${t.maxEntrants} ${t.mode === 'duo' ? 'teams' : 'players'}</span></div>
             <div class="fill"><i style="width:${pctFull}%"></i></div>
             <div class="row" style="justify-content:space-between;font-size:13px">${when}${icon('arrowRight', 'go')}</div>

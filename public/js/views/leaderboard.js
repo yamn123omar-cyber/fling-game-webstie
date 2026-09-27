@@ -16,8 +16,7 @@ export default {
         const val = r => (d.sort === 'rp' ? `${fmtInt(r.rp)} RP` : r.elo);
         return html`<div class="wrap page">
             <div class="page-head">
-                <div><span class="eyebrow">Rankings</span><h1>Leaderboard</h1>
-                <p>Elo measures skill and goes up and down with every match. Ranking points (RP) track your season progress. Full teams never lose RP.</p></div>
+                <div><h1>Leaderboard</h1></div>
                 <span class="spacer"></span>
                 <div class="col" style="gap:8px;align-items:flex-end">
                     <div class="seg big" data-q="mode">${[['solo', 'Solo 1v1'], ['duo', 'Duo 2v2']].map(([k, l]) => html`<button class="${d.mode === k ? 'on' : ''}" data-v="${k}">${l}</button>`)}</div>

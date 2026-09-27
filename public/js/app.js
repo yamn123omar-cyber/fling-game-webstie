@@ -49,20 +49,20 @@ function navGroups() {
             { href: '/', label: 'Home', icon: 'home', on: p => p === '/' },
             { href: '/tournaments', label: 'Tournaments', icon: 'trophy', on: p => p.startsWith('/tournaments') || p.startsWith('/t/') },
             { href: '/bracket', label: 'Bracket', icon: 'bracket', on: p => p.startsWith('/bracket') },
-            { href: '/matches', label: 'My matches', icon: 'swords', count: actionable(), on: p => p.startsWith('/matches') || p.startsWith('/m/') },
+            { href: '/matches', label: 'Matches', icon: 'swords', count: actionable(), on: p => p.startsWith('/matches') || p.startsWith('/m/') },
         ] },
         { title: 'Friends & teams', items: [
-            { href: '/players', label: 'Players & friends', icon: 'users', count: c.friendRequests, on: p => p.startsWith('/players') },
-            { href: '/teams', label: 'My team', icon: 'shield', count: c.teamInvites, on: p => p.startsWith('/team') },
+            { href: '/players', label: 'Friends', icon: 'users', count: c.friendRequests, on: p => p.startsWith('/players') },
+            { href: '/teams', label: 'Team', icon: 'shield', count: c.teamInvites, on: p => p.startsWith('/team') },
             { href: '/chat', label: 'Chat', icon: 'chat', count: c.chat, on: p => p.startsWith('/chat') },
         ] },
         { title: 'Stats', items: [
             { href: '/leaderboard', label: 'Leaderboard', icon: 'chart', on: p => p.startsWith('/leaderboard') },
-            { href: `/u/${encodeURIComponent(me.username)}`, label: 'My profile', icon: 'user', on: p => p === `/u/${encodeURIComponent(me.username)}` },
+            { href: `/u/${encodeURIComponent(me.username)}`, label: 'Profile', icon: 'user', on: p => p === `/u/${encodeURIComponent(me.username)}` },
         ] },
     ];
-    if (store.isStaff()) groups.push({ title: 'Admin', items: [{ href: '/admin', label: 'Admin panel', icon: 'whistle', on: p => p.startsWith('/admin') }] });
-    if (store.isOwner()) groups.push({ title: 'Owner', items: [{ href: '/owner', label: 'Owner panel', icon: 'crown', on: p => p.startsWith('/owner') }] });
+    if (store.isStaff()) groups.push({ title: 'Admin', items: [{ href: '/admin', label: 'Admin', icon: 'whistle', on: p => p.startsWith('/admin') }] });
+    if (store.isOwner()) groups.push({ title: 'Owner', items: [{ href: '/owner', label: 'Owner', icon: 'crown', on: p => p.startsWith('/owner') }] });
     return groups;
 }
 
@@ -72,13 +72,11 @@ function renderSidebar() {
     const p = currentPath();
     el.innerHTML = String(html`<nav class="side-nav" aria-label="Main">
         ${navGroups().map(g => html`<div class="side-group">
-            <div class="side-title">${g.title}</div>
             ${g.items.map(i => html`<a href="${i.href}" class="side-item ${i.on(p) ? 'on' : ''}" ${i.on(p) ? html`aria-current="page"` : ''}>
                 ${icon(i.icon)}<span>${i.label}</span>${i.count ? html`<span class="badge-dot">${i.count}</span>` : ''}</a>`)}
         </div>`)}
         <div class="side-foot">
             <a href="/settings" class="side-item ${p.startsWith('/settings') ? 'on' : ''}">${icon('cog')}<span>Settings</span></a>
-            <a href="/rules" class="side-item ${p.startsWith('/rules') ? 'on' : ''}">${icon('book')}<span>How it works</span></a>
             <button class="side-item" data-act="logout">${icon('logout')}<span>Log out</span></button>
         </div>
     </nav>`);
@@ -109,7 +107,7 @@ function renderTopbar() {
     nav.innerHTML = String(html`
         <button class="icon-btn burger" data-act="burger" aria-label="Open menu">${icon('menu')}</button>
         <a class="logo" href="/" aria-label="Fling Tournament home">${logoMark}<span>FLING <em>TOURNAMENT</em></span></a>
-        <span class="sync ${live ? 'ok' : 'off'}" title="${live ? 'Live — updates appear instantly' : 'Reconnecting…'}"><i></i><span>${live ? 'Live' : 'Reconnecting'}</span></span>
+        ${live ? '' : html`<span class="sync off" title="Reconnecting…"><i></i><span>Reconnecting</span></span>`}
         <div class="top-right">
             ${nextMatchPill()}
             <button class="icon-btn" data-act="theme" title="Switch light / dark">${icon(getTheme() === 'light' ? 'moon' : 'sun')}</button>
@@ -127,6 +125,7 @@ function meMenu(anchor) {
         <hr>
         <a href="/u/${encodeURIComponent(me.username)}">${icon('user')}My profile</a>
         <a href="/settings">${icon('cog')}Settings</a>
+        <a href="/rules">${icon('book')}Rules</a>
         <hr>
         <button data-act="logout" data-close>${icon('logout')}Log out</button>
     `);

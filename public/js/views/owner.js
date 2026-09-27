@@ -17,7 +17,6 @@ function discordCard(s) {
         : html`<span class="chip gold">Connected — not rebuilt yet</span>`;
     return html`<div class="card col" data-discord>
         <div class="card-head"><h3>Status</h3><span class="spacer"></span>${state}</div>
-        ${!s.configured && !s.demo ? html`<p class="dim">Set <code>DISCORD_BOT_TOKEN</code> and <code>DISCORD_GUILD_ID</code> on the server and invite the bot with the <b>Administrator</b> permission (or Manage Channels + Manage Roles, Send Messages, Attach Files, Read Message History).</p>` : ''}
         <div class="stat-grid">
             <div class="stat-box stat"><b>${s.built ? 'Yes' : 'No'}</b><span>New layout</span></div>
             <div class="stat-box stat"><b>${s.queue || 0}</b><span>Waiting to sync</span></div>
@@ -45,7 +44,7 @@ export default {
         const o = d.overview;
         const tab = d.tab;
         return html`<div class="wrap page">
-            <div class="page-head"><h1>Owner panel</h1><p>Only you can see this. Give trusted players admin so they can run tournaments — admins can't join the tournaments they run.</p></div>
+            <div class="page-head"><h1>Owner panel</h1></div>
             <div class="grid grid-4" style="margin-bottom:22px">
                 ${[['Players', o.users, 'users'], ['Admins', o.admins.length, 'shield'], ['Tournaments', o.tournaments, 'trophy'], ['Bots', o.bots, 'robot']].map(([k, v, ic]) => html`<div class="card tight kpi">${icon(ic)}<div class="stat"><b>${v}</b><span>${k}</span></div></div>`)}
             </div>
@@ -72,13 +71,12 @@ export default {
                     <div class="card-head"><h3>Bots</h3><span class="chip">${d.users.length}</span><span class="spacer"></span>
                         ${d.users.length ? html`<button class="btn sm danger" data-act="delbots">${icon('trash')}Delete all bots</button>` : ''}</div>
                     ${d.users.length ? html`<div class="list">${d.users.map(u => html`<div class="list-item">${userChip(u, { sub: `Created ${ago(u.createdAt)}` })}</div>`)}</div>`
-                        : empty('robot', 'No bots', 'Make a few to test brackets without real players.')}
+                        : empty('robot', 'No bots')}
                 </div>
                 <div class="col" style="gap:18px">
                     <form class="card col" data-form="bots">
                         <h3>Create bots</h3>
-                        <p class="dim" style="font-size:13.5px">Bots check in automatically. To put them in a tournament, open it and use <b>Add bots</b> in the admin tools, or Force join.</p>
-                        <label class="field"><span>How many</span><input class="input" name="count" type="number" min="1" max="32" value="4"></label>
+                                                <label class="field"><span>How many</span><input class="input" name="count" type="number" min="1" max="32" value="4"></label>
                         <label class="check"><input type="checkbox" name="team"><span><b>Pair the first two as a duo team</b><small>For testing duo tournaments</small></span></label>
                         <button class="btn primary" type="submit">${icon('robot')}Create</button>
                     </form>
@@ -89,14 +87,13 @@ export default {
                 ${discordCard(o.discord)}
                 <div class="col" style="gap:18px">
                     <div class="card col"><h3>Keep in sync</h3>
-                        <p class="dim" style="font-size:13.5px">Every player, team, tournament, match and match chat has one message in the hidden <b>🗄️ FTAP DATABASE</b> category, edited whenever it changes. Results and announcements go to <b>🏆 FTAP ARENA</b>.</p>
                         <div class="row wrap-ok">
                             <button class="btn" data-act="sync" ${o.discord.configured && o.discord.built ? '' : 'disabled'}>${icon('refresh')}Sync everything now</button>
                             <button class="btn" data-act="import" ${o.discord.configured ? '' : 'disabled'}>${icon('download')}Import old accounts</button>
                         </div>
                     </div>
                     <div class="card col danger-zone"><h3>${icon('alert')}Rebuild the server</h3>
-                        <p class="dim" style="font-size:13.5px"><b>Deletes every channel and category</b> in the Discord server, then creates the clean layout and fills it from the website's database. Old accounts are imported first so nobody loses their login. This can't be undone.</p>
+                        <p class="dim" style="font-size:13.5px">Deletes every channel, then builds the new layout. Can't be undone.</p>
                         <button class="btn danger" data-act="rebuild" ${o.discord.configured && !o.discord.job.running ? '' : 'disabled'}>${icon('trash')}Delete everything & rebuild</button>
                     </div>
                 </div>
@@ -104,13 +101,11 @@ export default {
 
             ${tab === 'data' ? html`<div class="grid grid-2">
                 <div class="card col"><h3>Backups</h3>
-                    <p class="dim">Everything is saved in <code>data/db.json</code> on the server. ${o.backup.discord ? 'A copy is also uploaded to #backups on Discord every few minutes, and restored automatically if the server disk is wiped.' : 'Discord backups are off — connect Discord to turn them on (recommended on hosts that wipe the disk on redeploy).'}</p>
                     <p class="dim">Last saved ${o.backup.lastWrite ? time(o.backup.lastWrite, 'ago') : 'not yet'}.</p>
                     <div class="row wrap-ok"><a class="btn" href="/api/admin/export" download data-export>${icon('download')}Download everything (JSON)</a>${o.backup.discord ? html`<button class="btn" data-act="backup">${icon('upload')}Back up now</button>` : ''}</div>
                 </div>
                 <div class="card col"><h3>Admins</h3>
                     <div class="list">${o.admins.map(u => html`<div class="list-item">${userChip(u, { sub: u.role === 'owner' ? 'Owner' : 'Admin' })}</div>`)}</div>
-                    <p class="dim" style="font-size:13px">Admins can create tournaments and score matches. They're added to the admin team of tournaments they create, and can't sign up for those.</p>
                 </div>
             </div>` : ''}
         </div>`;
@@ -140,23 +135,22 @@ export default {
                 if (a === 'role') {
                     const toAdmin = el.dataset.role === 'admin';
                     if (!(await confirm(toAdmin ? `Make ${el.dataset.name} an admin?` : `Remove admin from ${el.dataset.name}?`,
-                        toAdmin ? 'They can create and run tournaments and score matches. They can\'t join tournaments they run.' : 'They go back to being a normal player.', { yes: toAdmin ? 'Make admin' : 'Remove admin', danger: !toAdmin }))) return;
+                        '', { yes: toAdmin ? 'Make admin' : 'Remove admin', danger: !toAdmin }))) return;
                     if (await withBusy(el, () => post(`/admin/users/${el.dataset.id}/role`, { role: el.dataset.role }))) { toast(toAdmin ? 'Admin added.' : 'Admin removed.'); ctx.reload(); }
                 }
                 if (a === 'ban') {
                     const banning = !el.dataset.banned;
-                    if (banning && !(await confirm('Ban this player?', 'They are logged out and cannot log back in.', { yes: 'Ban', danger: true }))) return;
+                    if (banning && !(await confirm('Ban this player?', '', { yes: 'Ban', danger: true }))) return;
                     if (await withBusy(el, () => post(`/admin/users/${el.dataset.id}/ban`, { banned: banning }))) ctx.reload();
                 }
                 if (a === 'rbx') {
                     const ok = await modal({
-                        title: 'Set Roblox account', text: 'Links and verifies a Roblox account for this player without the code check.',
-                        body: html`<label class="field"><span>Roblox username</span><input class="input"></label><div class="form-error"></div>`,
+                        title: 'Set Roblox account',                         body: html`<label class="field"><span>Roblox username</span><input class="input"></label><div class="form-error"></div>`,
                         actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Link', cls: 'primary', handler: m => post(`/admin/users/${el.dataset.id}/roblox`, { username: m.querySelector('input').value.trim() }) }],
                     });
                     if (ok) ctx.reload();
                 }
-                if (a === 'delbots' && await confirm('Delete all bots?', 'Bots in a live tournament are kept until it ends.', { yes: 'Delete', danger: true })) {
+                if (a === 'delbots' && await confirm('Delete all bots?', '', { yes: 'Delete', danger: true })) {
                     const r = await withBusy(el, () => post('/admin/bots/delete-all'));
                     if (r) { toast(`${r.removed} bots deleted${r.kept ? `, ${r.kept} kept (in a live tournament)` : ''}.`); ctx.reload(); }
                 }
@@ -169,7 +163,7 @@ export default {
                 if (a === 'rebuild') {
                     const ok = await modal({
                         title: 'Delete everything in the Discord server?',
-                        text: 'Every channel and category will be deleted and replaced with the new layout. Type DELETE EVERYTHING to confirm.',
+                        text: 'Type DELETE EVERYTHING to confirm.',
                         body: html`<input class="input" placeholder="DELETE EVERYTHING" autocomplete="off"><div class="form-error"></div>`,
                         actions: [{ label: 'Cancel', cls: 'ghost', value: null }, { label: 'Delete & rebuild', cls: 'danger', handler: m => post('/admin/discord/rebuild', { confirm: m.querySelector('input').value.trim() }) }],
                     });

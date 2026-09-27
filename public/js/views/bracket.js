@@ -55,7 +55,6 @@ export default {
         return html`<div class="wrap page bracket-page">
             <div class="page-head">
                 <h1>Bracket</h1>
-                <p>Left and right sides fight their way to the Final in the middle. Lost a match? The losers bracket underneath gives you a second chance.</p>
             </div>
             <div class="bracket-tools">
                 <select class="select" data-pick aria-label="Tournament">

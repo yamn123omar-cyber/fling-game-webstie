@@ -121,15 +121,14 @@ function twoSided(t, card) {
         const sideMatches = side === 'L' ? L.flat() : R.flat();
         const rounds = byRound(xs);
         return html`<section class="b-section lb">
-            <div class="b-title">${icon('refresh')}Losers bracket · ${side === 'L' ? 'left' : 'right'} side</div>
-            <p class="lb-help">Lost a match? You get a second chance: the losers of a round fight it out and the winner takes the open spot in the next round.</p>
+            <div class="b-title">${icon('refresh')}Losers bracket · ${side === 'L' ? 'left' : 'right'}</div>
             ${rounds.map(list => {
                 const r = list[0].round;
                 const target = sideMatches.find(m => m.round === r && m.waiting);
                 const cols = new Map();
                 for (const m of list) { if (!cols.has(m.xRound)) cols.set(m.xRound, []); cols.get(m.xRound).push(m); }
                 return html`<div class="lb-round">
-                    <div class="lb-head"><b>Round ${r} losers</b>${target ? html`<span class="dim">winner goes to <span class="mono accent">${matchCode(target)}</span></span>` : ''}</div>
+                    <div class="lb-head"><b>Round ${r} losers</b>${target ? html`<span class="dim">winner → <span class="mono accent">${matchCode(target)}</span></span>` : ''}</div>
                     <div class="b-scroll" data-drag><div class="lb-cols">${[...cols.values()].map(ms => html`<div class="b-col"><div class="b-col-body">${ms.sort((a, b) => a.index - b.index).map(card)}</div></div>`)}</div></div>
                 </div>`;
             })}

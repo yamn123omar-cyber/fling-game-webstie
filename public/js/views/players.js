@@ -25,7 +25,7 @@ export default {
         const tab = ['all', 'friends', 'requests'].includes(ctx.query.tab) ? ctx.query.tab : 'all';
         const onlineFriends = d.friends.filter(isOnline).length;
         return html`<div class="wrap page">
-            <div class="page-head"><h1>Players & friends</h1><p>Find people, add friends, message them and team up for duo tournaments.</p></div>
+            <div class="page-head"><h1>Players & friends</h1></div>
             <div class="tabs" role="tablist">
                 <button class="${tab === 'all' ? 'on' : ''}" data-tab="all">${icon('users')}All players<span class="count">${d.players.length}</span></button>
                 <button class="${tab === 'friends' ? 'on' : ''}" data-tab="friends">${icon('userCheck')}Friends<span class="count">${d.friends.length}</span></button>
@@ -40,7 +40,7 @@ export default {
                     <span class="hide-sm">${tier(u.elo.solo)}</span>
                     ${u.friend ? html`<span class="chip green hide-sm">${icon('check')}Friend</span>` : ''}
                     ${relationButtons(u)}
-                </div>`)}</div>` : empty('search', 'No players found', ctx.query.q ? 'Try another name.' : 'Nobody else has signed up yet.')}
+                </div>`)}</div>` : empty('search', 'No players found')}
             </div>` : ''}
 
             ${tab === 'friends' ? html`<div class="card">
@@ -52,17 +52,17 @@ export default {
                     <button class="btn sm" data-act="dm" data-id="${f.id}">${icon('chat')}<span class="hide-sm">Message</span></button>
                     <button class="btn sm" data-act="team" data-user="${f.username}" data-name="${f.displayName}">${icon('users')}<span class="hide-sm">Team up</span></button>
                     <button class="btn ghost icon sm" data-act="remove" data-id="${f.id}" data-name="${f.displayName}" title="Remove friend">${icon('x')}</button>
-                </div>`)}</div>` : empty('users', 'No friends yet', 'Go to All players and press "Add friend".', html`<button class="btn primary" data-tab="all">${icon('search')}Find players</button>`)}
+                </div>`)}</div>` : empty('users', 'No friends yet', '', html`<button class="btn primary" data-tab="all">${icon('search')}Find players</button>`)}
             </div>` : ''}
 
             ${tab === 'requests' ? html`<div class="grid grid-2">
                 <div class="card"><div class="card-head"><h3>Received</h3></div>
                     ${d.incoming.length ? html`<div class="list">${d.incoming.map(r => html`<div class="list-item">${userChip(r.user, { sub: time(r.at, 'ago') })}<span class="spacer"></span>
                         <button class="btn primary sm" data-act="accept" data-id="${r.id}">Accept</button><button class="btn ghost sm" data-act="decline" data-id="${r.id}" title="Decline">${icon('x')}</button></div>`)}</div>`
-                        : empty('bell', 'No requests', 'When someone adds you, it shows up here.')}
+                        : empty('bell', 'No requests')}
                 </div>
                 <div class="card"><div class="card-head"><h3>Sent</h3></div>
-                    ${d.outgoing.length ? html`<div class="list">${d.outgoing.map(r => html`<div class="list-item">${userChip(r.user, { sub: 'Waiting for them' })}<span class="spacer"></span><button class="btn ghost sm" data-act="cancel" data-id="${r.id}">Cancel</button></div>`)}</div>`
+                    ${d.outgoing.length ? html`<div class="list">${d.outgoing.map(r => html`<div class="list-item">${userChip(r.user)}<span class="spacer"></span><button class="btn ghost sm" data-act="cancel" data-id="${r.id}">Cancel</button></div>`)}</div>`
                         : html`<p class="dim">Nothing pending.</p>`}
                 </div>
             </div>` : ''}

@@ -29,7 +29,7 @@ export default {
         const chk = (name, label, hint) => html`<label class="check"><input type="checkbox" name="${name}" ${s[name] ? 'checked' : ''}><span><b>${label}</b><small>${hint}</small></span></label>`;
         return html`<div class="wrap page" style="max-width:980px">
             <a class="crumb" href="${t ? `/t/${t.id}` : '/admin'}">${icon('left')}${t ? t.name : 'Admin'}</a>
-            <div class="page-head"><div><span class="eyebrow">${t ? 'Edit' : 'Create'}</span><h1>${t ? 'Edit tournament' : 'New tournament'}</h1></div></div>
+            <div class="page-head"><div><h1>${t ? 'Edit tournament' : 'New tournament'}</h1></div></div>
             <form class="col" data-form="t" style="gap:20px">
                 <div class="card col">
                     <h3>Basics</h3>

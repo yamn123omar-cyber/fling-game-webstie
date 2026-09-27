@@ -54,7 +54,7 @@ export default {
         const auto = u.stats && u.stats.duo.matches > u.stats.solo.matches ? 'duo' : u.profile.favoriteMode || 'solo';
         const mode = modes.includes(ctx.query.mode) ? ctx.query.mode : auto;
         const s = u.stats ? u.stats[mode] : null;
-        const hidden = (what) => html`<div class="card">${empty('lock', `${u.displayName} keeps their ${what} private`, 'Only friends (or nobody) can see this part of the profile.')}</div>`;
+        const hidden = (what) => html`<div class="card">${empty('lock', `${u.displayName} keeps their ${what} private`, '')}</div>`;
         const isMe = d.relation && d.relation.isMe;
         const socials = Object.entries(u.profile.socials || {}).filter(([k, v]) => v && SOCIAL[k]);
         return html`<div class="profile" style="--pa:${u.accent}">
@@ -106,13 +106,13 @@ export default {
                         ${!s ? hidden('stats') : html`<div class="card rank-card">
                             <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:12px">
                                 <div class="seg big" data-mode>${modes.map(k => html`<button class="${k === mode ? 'on' : ''}" data-v="${k}">${k === 'solo' ? 'Solo 1v1' : 'Duo 2v2'}</button>`)}</div>
-                                ${s.matches < 10 ? html`<span class="chip">Provisional · ${s.matches}/10 matches</span>` : ''}
+
                             </div>
                             <div class="rank-row">
                                 <div class="emblem tier-${tierName(s.elo)}"><i></i><span class="display">${s.elo}</span></div>
                                 <div class="col" style="gap:4px">
                                     ${tier(s.elo)}
-                                    <span class="dim">Peak <b class="mono">${s.peak}</b> · <b class="mono">${fmtInt(s.rp)}</b> ranking points</span>
+                                    <span class="dim">Peak <b class="mono">${s.peak}</b></span>
                                     ${s.streak >= 2 ? html`<span class="streak big">${icon('fire')}${s.streak} win streak</span>` : ''}
                                 </div>
                             </div>
@@ -120,17 +120,15 @@ export default {
                         </div>
                         <div class="stat-grid">
                             ${[
-                                ['Matches', s.matches], ['Win rate', pct(s.matches ? s.wins / s.matches : 0)], ['Wins – losses', `${s.wins}–${s.losses}`],
-                                ['Duels', `${s.duelsWon}–${s.duelsLost}`], ['K/D', kd(s.kills, s.deaths)], ['Kills', fmtInt(s.kills)],
-                                ['Best streak', s.bestStreak], ['Titles', s.titles], ['Podiums', s.podiums],
-                                ['Tournaments', s.tournaments], ['Best finish', s.bestPlace ? ordinal(s.bestPlace) : '—'], ['No-shows', s.noShows],
+                                ['Wins – losses', `${s.wins}–${s.losses}`], ['Win rate', pct(s.matches ? s.wins / s.matches : 0)], ['Tournament wins', s.titles],
+                                ['Kills', fmtInt(s.kills)], ['K/D', kd(s.kills, s.deaths)], ['Best finish', s.bestPlace ? ordinal(s.bestPlace) : '—'],
                             ].map(([k, v]) => html`<div class="stat-box stat"><b>${v}</b><span>${k}</span></div>`)}
                         </div>`}
                         ${!vis.history ? hidden('match history') : ''}
                         ${vis.history && d.opponents.length ? html`<div class="card flush">
-                            <div class="card-head" style="padding:18px 18px 0"><h3>Who they've fought</h3></div>
+                            <div class="card-head" style="padding:18px 18px 0"><h3>Opponents</h3></div>
                             <div class="table-scroll"><table class="table">
-                                <thead><tr><th>Opponent</th><th class="num">Duels won–lost</th><th class="num">Kills–deaths</th><th class="num">Last score</th><th>When</th></tr></thead>
+                                <thead><tr><th>Opponent</th><th class="num">Duels</th><th class="num">Kills</th><th class="num">Last</th><th></th></tr></thead>
                                 <tbody>${d.opponents.map(o => html`<tr>
                                     <td>${userChip(o.user)}</td>
                                     <td class="num"><b class="${o.duelsWon > o.duelsLost ? 'up' : o.duelsWon < o.duelsLost ? 'down' : ''}">${o.duelsWon}–${o.duelsLost}</b></td>
@@ -147,7 +145,7 @@ export default {
                                 <span class="mono">${m.score[0]}–${m.score[1]}</span>
                                 ${m.change ? html`<span class="delta mono ${m.change.elo > 0 ? 'up' : m.change.elo < 0 ? 'down' : ''}">${signed(m.change.elo)}</span>` : ''}
                                 <span class="dim nowrap" style="font-size:12.5px">${time(m.at, 'ago')}</span>
-                            </a>`)}</div>` : empty('swords', 'No matches yet', isMe ? 'Enter a tournament to start your record.' : '')}
+                            </a>`)}</div>` : empty('swords', 'No matches yet')}
                         </div>` : ''}
                         ${d.tournaments.length ? html`<div class="card"><div class="card-head"><h3>Tournaments</h3></div>
                             <div class="list">${d.tournaments.map(t => html`<a class="list-item" href="/t/${t.id}">

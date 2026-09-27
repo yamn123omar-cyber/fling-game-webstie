@@ -51,7 +51,7 @@ function profileTab(u) {
 }
 
 function robloxTab(u, ctx) {
-    const welcome = ctx.query.welcome ? html`<div class="banner-note accent-note">${icon('bolt')}<span><b>Welcome!</b> Linking Roblox is optional, but admins need your in-game name and your avatar shows up on your profile. You can do this later.</span><a class="btn sm" href="/tournaments">Skip for now</a></div>` : '';
+    const welcome = ctx.query.welcome ? html`<div class="banner-note accent-note">${icon('bolt')}<span><b>Welcome!</b> Link your Roblox (optional).</span><a class="btn sm" href="/tournaments">Skip for now</a></div>` : '';
     if (u.roblox) {
         return html`${welcome}<div class="card rbx-linked">
             <img class="rbx-head" src="/api/roblox/avatar/${u.roblox.id}" alt="">
@@ -60,34 +60,25 @@ function robloxTab(u, ctx) {
             <a class="btn" href="https://www.roblox.com/users/${u.roblox.id}/profile" target="_blank" rel="noopener">${icon('external')}Roblox profile</a>
             <button class="btn danger" data-act="unlink">Unlink</button>
         </div>
-        <p class="dim" style="margin-top:14px">You can remove the verification code from your Roblox About section now.</p>`;
+`;
     }
     const p = u.robloxPending;
-    return html`${welcome}<div class="split">
+    return html`${welcome}<div style="max-width:640px">
         <div class="card">
             <ol class="rbx-steps">
                 <li class="${p ? 'done' : 'on'}"><b>Find your Roblox account</b>
                     ${p ? html`<div class="rbx-found"><img src="/api/roblox/avatar/${p.id}" alt="" class="rbx-head sm"><span><b>${p.displayName}</b> <span class="dim">@${p.name}</span></span><button class="btn ghost sm" data-act="restart">Change</button></div>`
                         : html`<form class="input-group" data-form="rbx-start" style="margin-top:10px"><input class="input" name="username" placeholder="Roblox username" maxlength="20" value="${(u.legacy && u.legacy.robloxUsername) || ''}" autocapitalize="off" spellcheck="false"><button class="btn primary" type="submit">Find</button></form>`}
                 </li>
-                <li class="${p ? 'on' : ''}"><b>Paste this code into your Roblox About section</b>
+                <li class="${p ? 'on' : ''}"><b>Put this code in your Roblox About</b>
                     ${p ? html`<div class="code-box"><code class="mono">${p.code}</code><button class="btn sm" data-act="copy" data-v="${p.code}">${icon('copy')}Copy</button></div>
-                        <span class="dim">On roblox.com open <a class="accent" href="https://www.roblox.com/users/${p.id}/profile" target="_blank" rel="noopener">your profile</a> → edit About → paste the code anywhere → Save.</span>` : html`<span class="dim">We'll give you a short code.</span>`}
+                        <a class="accent" href="https://www.roblox.com/users/${p.id}/profile" target="_blank" rel="noopener">Open your Roblox profile</a>` : html``}
                 </li>
                 <li class="${p ? 'on' : ''}"><b>Verify</b>
-                    ${p ? html`<div class="row" style="margin-top:10px"><button class="btn primary lg" data-act="verify">${icon('checkCircle')}Verify now</button></div>` : html`<span class="dim">We check your profile and link the account.</span>`}
+                    ${p ? html`<div class="row" style="margin-top:10px"><button class="btn primary lg" data-act="verify">${icon('checkCircle')}Verify now</button></div>` : html``}
                 </li>
             </ol>
             <div class="form-error" style="margin-top:10px"></div>
-        </div>
-        <div class="card col">
-            <h3>Why link Roblox?</h3>
-            <ul class="ticks">
-                <li>Refs and opponents see your in-game name in the match room, so they can find you in the server.</li>
-                <li>Your Roblox avatar becomes your profile picture and shows up in 3D on your profile.</li>
-                <li>Some tournaments only accept verified players.</li>
-                <li>Verification proves the account is yours — nobody can pretend to be you.</li>
-            </ul>
         </div>
     </div>`;
 }
@@ -103,12 +94,10 @@ function accountTab(u) {
         </form>
         <div class="card col">
             <h3>Session</h3>
-            <p class="dim">Signed in as <b>@${u.username}</b>.</p>
             <div><button class="btn" data-act="logout">${icon('logout')}Log out</button></div>
             <hr class="divider">
             <h3 style="color:#ff8a95">Danger zone</h3>
-            <p class="dim">Deleting your account removes your profile, friends and teams. Match history stays (shown as "Deleted user") so brackets stay correct.</p>
-            <div><button class="btn danger" data-act="delete">${icon('trash')}Delete account</button></div>
+                        <div><button class="btn danger" data-act="delete">${icon('trash')}Delete account</button></div>
         </div>
     </div>`;
 }
@@ -121,7 +110,7 @@ export default {
         const u = d.user;
         const tab = ['profile', 'roblox', 'account'].includes(ctx.query.tab) ? ctx.query.tab : 'profile';
         return html`<div class="wrap page">
-            <div class="page-head"><div><span class="eyebrow">Your account</span><h1>Settings</h1></div></div>
+            <div class="page-head"><div><h1>Settings</h1></div></div>
             <div class="tabs">${[['profile', 'Profile', 'user'], ['roblox', 'Roblox', 'gamepad'], ['account', 'Account', 'lock']].map(([k, l, ic]) => html`<button class="${k === tab ? 'on' : ''}" data-tab="${k}">${icon(ic)}${l}${k === 'roblox' && !u.roblox ? html`<span class="badge-dot" style="width:8px;min-width:8px;height:8px;padding:0"></span>` : ''}</button>`)}</div>
             ${tab === 'profile' ? profileTab(u) : tab === 'roblox' ? robloxTab(u, ctx) : accountTab(u)}
         </div>`;

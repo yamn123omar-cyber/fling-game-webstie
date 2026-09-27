@@ -39,7 +39,7 @@ export default {
     render(d) {
         return html`<div class="wrap page">
             <div class="page-head">
-                <div><span class="eyebrow">Duo play</span><h1>Your teams</h1><p>A team is two players. Make one with a friend and register it for any duo tournament. You can be on several teams.</p></div>
+                <div><h1>Your teams</h1></div>
                 <span class="spacer"></span>
                 <button class="btn primary" data-act="create">${icon('plus')}New team</button>
             </div>
