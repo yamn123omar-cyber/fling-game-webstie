@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.venv/
+
+# Environment variables
+.env
+
+# Logs
+server.log
+server.err
+output.txt
+
+# Backup files
+index.html.bak
+
+# Development/testing files
+blackhole-test.html
+check-backticks.js
+check-js.js
+check-syntax.js
+find-error.js
+find-syntax-error.js
+test-script.js
+validate.js
+validate2.js
+syntax-check.js
+
+# Python scripts (thumbnails, fixes)
+fix_all_thumbnails.py
+fix_thumbnails.py
+fix_thumbnails_final.py
+set_video_thumbnails.py
+
+# Documentation/worklogs
+handoff.md
+progress.md
+worklog-*.md
+
+# Graphify output
+graphify-out/
+
+# OS files
+.DS_Store
+Thumbs.db
