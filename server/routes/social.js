@@ -72,6 +72,38 @@ function teamView(team) {
     };
 }
 
+// Everyone this player has fought in a duel, with the record against them.
+function opponents(uid) {
+    const map = new Map();
+    for (const m of Object.values(db.data.matches)) {
+        if (m.status !== 'done' || !m.result || m.result.type !== 'played') continue;
+        for (const d of m.duels || []) {
+            if (d.winner === null) continue;
+            const s = d.players.indexOf(uid);
+            if (s < 0) continue;
+            const oppId = d.players[1 - s];
+            const r = map.get(oppId) || { user: users.summary(users.get(oppId)), duelsWon: 0, duelsLost: 0, kills: 0, deaths: 0, last: null, lastScore: null, lastMatchId: null };
+            if (d.winner === s) r.duelsWon++; else r.duelsLost++;
+            r.kills += d.scores[s];
+            r.deaths += d.scores[1 - s];
+            const at = d.at || m.completedAt;
+            if (!r.last || at > r.last) { r.last = at; r.lastScore = [d.scores[s], d.scores[1 - s]]; r.lastMatchId = m.id; }
+            map.set(oppId, r);
+        }
+    }
+    return [...map.values()].sort((a, b) => (b.duelsWon + b.duelsLost) - (a.duelsWon + a.duelsLost) || (b.last || '').localeCompare(a.last || '')).slice(0, 30);
+}
+
+function teamHistoryOf(uid) {
+    return Object.values(db.data.teams)
+        .filter(t => !t.members.includes(uid) || t.disbanded)
+        .filter(t => (t.history || []).some(h => h.userId === uid))
+        .map(t => {
+            const mine = (t.history || []).filter(h => h.userId === uid);
+            return { ...teamView(t), disbanded: Boolean(t.disbanded), joinedAt: mine[0] && mine[0].at, leftAt: (mine.filter(h => h.action === 'left').pop() || {}).at || null };
+        });
+}
+
 router.get('/users/:username', route(req => {
     const u = findUser(req.params.username);
     const viewer = req.user;
@@ -81,12 +113,23 @@ router.get('/users/:username', route(req => {
         requestSent: Object.values(db.data.friendRequests).find(r => r.from === viewer.id && r.to === u.id)?.id || null,
         requestReceived: Object.values(db.data.friendRequests).find(r => r.from === u.id && r.to === viewer.id)?.id || null,
     } : null;
+    // Privacy: each part of a profile can be public, friends-only or private.
+    const priv = u.profile.privacy || {};
+    const can = lvl => !lvl || lvl === 'public' || Boolean(relation && (relation.isMe || (lvl === 'friends' && relation.isFriend))) || auth.hasRole(viewer, 'owner');
+    const profile = users.profile(u);
+    const showStats = can(priv.stats);
+    const showHistory = can(priv.history);
+    if (!can(priv.bio)) profile.profile = { ...profile.profile, bio: '' };
+    if (!showStats) profile.stats = null;
     return {
-        user: users.profile(u),
+        user: profile,
         relation,
-        matches: matchHistory(u.id),
+        visible: { stats: showStats, history: showHistory },
+        matches: showHistory ? matchHistory(u.id) : [],
         tournaments: tournamentHistory(u.id),
         teams: Object.values(db.data.teams).filter(t => !t.disbanded && t.members.includes(u.id)).map(teamView),
+        pastTeams: showHistory ? teamHistoryOf(u.id) : [],
+        opponents: showHistory ? opponents(u.id) : [],
     };
 }));
 
@@ -120,6 +163,10 @@ router.patch('/me/profile', requireAuth, route(req => {
         u.profile.banner = b.banner;
     }
     if (b.favoriteMode !== undefined) u.profile.favoriteMode = b.favoriteMode === 'duo' ? 'duo' : 'solo';
+    if (b.privacy && typeof b.privacy === 'object') {
+        const lv = v => (['public', 'friends', 'private'].includes(v) ? v : 'public');
+        u.profile.privacy = { bio: lv(b.privacy.bio), stats: lv(b.privacy.stats), history: lv(b.privacy.history) };
+    }
     if (b.socials && typeof b.socials === 'object') {
         const out = {};
         for (const k of users.SOCIALS) {
@@ -367,6 +414,7 @@ function inviteToTeam(team, from, target) {
 
 function leaveTeam(team, uid) {
     team.members = team.members.filter(x => x !== uid);
+    (team.history ||= []).push({ userId: uid, action: 'left', at: new Date().toISOString() });
     if (!team.members.length) {
         team.disbanded = true;
         for (const [k, i] of Object.entries(db.data.teamInvites)) if (i.teamId === team.id) delete db.data.teamInvites[k];
@@ -406,7 +454,7 @@ router.post('/teams', requireAuth, route(req => {
     const active = Object.values(db.data.teams).filter(t => !t.disbanded && t.members.includes(me.id));
     if (active.length >= 6) throw bad('You can be on 6 teams at most');
     const f = validTeamFields({ color: TEAM_COLORS[Math.floor(Math.random() * TEAM_COLORS.length)], ...req.body });
-    const team = { id: db.id('tm'), name: f.name, tag: f.tag || null, color: f.color, captainId: me.id, members: [me.id], createdAt: new Date().toISOString() };
+    const team = { id: db.id('tm'), name: f.name, tag: f.tag || null, color: f.color, captainId: me.id, members: [me.id], createdAt: new Date().toISOString(), history: [{ userId: me.id, action: 'created', at: new Date().toISOString() }] };
     let target = null;
     if (req.body.invite) {
         target = findUser(req.body.invite);
@@ -450,6 +498,7 @@ router.post('/team-invites/:id/:action', requireAuth, route(req => {
     if (req.params.action === 'accept') {
         if (team.members.length >= 2) throw bad('That team is already full');
         team.members.push(me.id);
+        (team.history ||= []).push({ userId: me.id, action: 'joined', at: new Date().toISOString() });
         for (const [k, i] of Object.entries(db.data.teamInvites)) if (i.teamId === team.id) delete db.data.teamInvites[k];
         for (const uid of team.members) if (uid !== me.id) users.notify(uid, { type: 'team', text: `${me.displayName} joined "${team.name}"`, link: `/team/${team.id}` });
         chat.system(`team:${team.id}`, `${me.displayName} joined the team. Say hi!`);

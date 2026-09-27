@@ -42,11 +42,16 @@ function audience(channelId) {
     if (type === 'match') {
         const m = db.data.matches[ids[0]];
         if (!m) return [];
-        const staff = Object.values(db.data.users).filter(u => u.role === 'ref' || u.role === 'admin').map(u => u.id);
-        return [...matchMemberIds(m), ...staff];
+        return [...matchMemberIds(m), ...tournamentStaff(m.tournamentId)];
     }
     if (type === 'tour') return null;
     return [];
+}
+
+function tournamentStaff(tid) {
+    const t = db.data.tournaments[tid];
+    const owners = Object.values(db.data.users).filter(u => u.role === 'owner' && !u.deleted).map(u => u.id);
+    return [...new Set([...((t && t.staff) || []), ...owners])];
 }
 
 function areFriends(a, b) {
@@ -62,7 +67,6 @@ function shareTeam(a, b) {
 function access(user, channelId) {
     if (!user) return { read: false, write: false };
     const { type, ids } = parse(channelId);
-    const staff = hasRole(user, 'ref');
     if (type === 'dm') {
         if (ids.length !== 2 || !ids.includes(user.id)) return { read: false, write: false };
         const other = ids.find(i => i !== user.id) || user.id;
@@ -78,6 +82,7 @@ function access(user, channelId) {
         const m = db.data.matches[ids[0]];
         if (!m) return { read: false, write: false };
         const member = matchMemberIds(m).includes(user.id);
+        const staff = hasRole(user, 'owner') || tournamentStaff(m.tournamentId).includes(user.id);
         return { read: member || staff, write: member || staff };
     }
     if (type === 'tour') {

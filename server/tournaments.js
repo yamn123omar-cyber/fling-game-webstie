@@ -56,6 +56,18 @@ const nameOf = uid => {
 };
 const entryName = e => (e ? e.name : 'TBD');
 const emitT = t => rt.broadcast('tournament', { id: t.id, status: t.status });
+
+// Tournament admins: the owner can manage everything; admins manage the
+// tournaments they're on the admin team of — and can't play in those.
+const isOwner = user => hasRole(user, 'owner');
+const isStaffOf = (user, t) => Boolean(user) && (isOwner(user) || (t.staff || []).includes(user.id));
+const staffIdsOf = t => {
+    const owners = Object.values(db.data.users).filter(u => u.role === 'owner' && !u.deleted).map(u => u.id);
+    return [...new Set([...(t.staff || []), ...owners])];
+};
+function assertManage(t, user) {
+    if (!isStaffOf(user, t)) throw new HttpError(403, "Only this tournament's admins can do that");
+}
 const emitM = (m, extra = {}) => rt.broadcast('match', { id: m.id, tournamentId: m.tournamentId, status: m.status, ...extra });
 const isDqFn = t => eid => Boolean(entryOf(t, eid) && entryOf(t, eid).dq);
 const checkinOpensAt = (t, m) => new Date(m.scheduledAt).getTime() - t.settings.matchCheckinMinutes * MIN;
@@ -75,6 +87,7 @@ function sanitizeSettings(input = {}, base = cfg.tournamentDefaults) {
         if (s[k] % 2 === 0) throw bad(`${k} must be an odd number (1, 3, 5…)`);
     };
     const bool = k => { if (input[k] !== undefined) s[k] = Boolean(input[k]); };
+    bool('secondChances');
     int('checkinMinutes', 0, 240);
     int('matchPrepMinutes', 1, 180);
     int('matchCheckinMinutes', 5, 180);
@@ -106,6 +119,11 @@ function applyBasics(t, input, creating) {
     str('description', 2000);
     str('rules', 4000);
     str('prize', 120);
+    if (input.prizes !== undefined) {
+        const pz = input.prizes || {};
+        t.prizes = { first: String(pz.first || '').trim().slice(0, 80), second: String(pz.second || '').trim().slice(0, 80), third: String(pz.third || '').trim().slice(0, 80) };
+        t.prize = t.prizes.first;
+    }
     if (input.accent !== undefined) {
         if (!/^#[0-9a-f]{6}$/i.test(input.accent)) throw bad('Accent must be a hex colour');
         t.accent = input.accent;
@@ -114,7 +132,7 @@ function applyBasics(t, input, creating) {
         const mode = input.mode ?? t.mode;
         const format = input.format ?? t.format;
         if (!['solo', 'duo'].includes(mode)) throw bad('Mode must be solo or duo');
-        if (!['single', 'double'].includes(format)) throw bad('Format must be single or double elimination');
+        if (!['twosided', 'single', 'double'].includes(format)) throw bad('Unknown bracket format');
         if (!creating && t.entries.length && (mode !== t.mode)) throw bad('Cannot change mode after people registered');
         t.mode = mode;
         t.format = format;
@@ -140,7 +158,9 @@ function createTournament(input, user) {
         id: db.id('t'),
         name: '', description: '', rules: '', prize: '',
         accent: '#c4ff4d',
-        mode: 'solo', format: 'single',
+        mode: 'solo', format: 'twosided',
+        prizes: { first: '', second: '', third: '' },
+        staff: [user.id],
         status: 'draft',
         startAt: null, maxEntrants: cfg.tournamentDefaults.maxEntrants,
         settings: { ...cfg.tournamentDefaults },
@@ -213,6 +233,7 @@ function register(t, user, { teamId, solo } = {}) {
     if (!['registration', 'checkin'].includes(t.status)) throw bad('Registration is closed');
     if (t.entries.length >= t.maxEntrants) throw bad('This tournament is full');
     if (entryForUser(t, user.id)) throw bad('You are already registered');
+    if ((t.staff || []).includes(user.id)) throw bad("You're an admin of this tournament, so you can't play in it");
     assertRoblox(t, user.id);
 
     const base = { id: db.id('e'), registeredAt: nowIso(), registeredBy: user.id, checkedIn: t.status === 'checkin', dq: false };
@@ -228,6 +249,7 @@ function register(t, user, { teamId, solo } = {}) {
         if (team.members.length !== 2) throw bad('Your team needs 2 members — invite a partner or enter alone');
         for (const uid of team.members) {
             if (entryForUser(t, uid)) throw bad(`${nameOf(uid)} is already registered with another team`);
+            if ((t.staff || []).includes(uid)) throw bad(`${nameOf(uid)} is an admin of this tournament and can't play in it`);
             assertRoblox(t, uid);
         }
         entry = { ...base, type: 'team', teamId: team.id, name: team.name, tag: team.tag, color: team.color, members: [...team.members] };
@@ -282,6 +304,7 @@ function checkin(t, user) {
 
 function openCheckin(t) {
     t.status = 'checkin';
+    for (const e of t.entries) if (e.members.every(uid => (users.get(uid) || {}).isBot)) e.checkedIn = true;
     // If the server was asleep through the window, give people a fair chance anyway.
     const minWindow = Math.min(t.settings.checkinMinutes, 10) * MIN;
     if (new Date(t.startAt).getTime() < Date.now() + minWindow) t.startAt = iso(Date.now() + minWindow);
@@ -314,11 +337,10 @@ function startTournament(t) {
     kept.sort((a, b) => b.rating - a.rating || a.registeredAt.localeCompare(b.registeredAt));
     kept.forEach((e, i) => { e.seed = i + 1; e.checkedIn = true; });
 
-    const gen = bracket.generate(kept.map(e => e.id), {
-        format: t.format,
-        thirdPlaceMatch: t.settings.thirdPlaceMatch,
-        grandFinalReset: t.settings.grandFinalReset,
-    }, () => db.id('m'));
+    const ids = kept.map(e => e.id);
+    const gen = t.format === 'twosided'
+        ? bracket.generateTwoSided(ids, { secondChances: t.settings.secondChances !== false, thirdPlaceMatch: t.settings.thirdPlaceMatch !== false }, () => db.id('m'))
+        : bracket.generate(ids, { format: t.format, thirdPlaceMatch: t.settings.thirdPlaceMatch, grandFinalReset: t.settings.grandFinalReset }, () => db.id('m'));
     for (const m of gen.matches) {
         Object.assign(m, {
             tournamentId: t.id,
@@ -364,9 +386,16 @@ function scheduleReady(t, list) {
             `anyone not checked in by ${tok(deadlineAt(t, m))} forfeits. Use this chat to sort out the Roblox server — the log is kept as evidence.`);
         for (const [mine, theirs] of [[A, B], [B, A]]) {
             for (const uid of mine.members) {
+                const u = users.get(uid);
+                if (u && u.isBot) {
+                    m.checkins[uid] = nowIso();
+                    chat.system(`match:${m.id}`, `🤖 ${nameOf(uid)} (bot) checked in automatically.`, { event: 'checkin', userId: uid });
+                    continue;
+                }
                 users.notify(uid, { type: 'match', text: `Your match vs ${theirs.name} is ready — check in before ${tok(deadlineAt(t, m))}`, link: `/m/${m.id}` });
             }
         }
+        if ([A, B].every(e => e.members.every(uid => m.checkins[uid]))) lockLineups(t, m);
         emitM(m);
     }
 }
@@ -416,7 +445,7 @@ function lockLineups(t, m) {
     m.readyAt = nowIso();
     const plan = m.duels.map(d => `Duel ${d.n}: ${nameOf(d.players[0])} vs ${nameOf(d.players[1])}`).join(' · ');
     chat.system(`match:${m.id}`, `Lineups locked. ${plan}. ${notes.join(' ')} Waiting for a referee to start the match.`, { event: 'ready' });
-    rt.toUsers(users.staffIds(), 'refqueue', { matchId: m.id, tournamentId: t.id, label: `${t.name} · ${m.label}` });
+    rt.toUsers(staffIdsOf(t), 'refqueue', { matchId: m.id, tournamentId: t.id, label: `${t.name} · ${m.label}` });
 }
 
 function processMatchTimers(t, m) {
@@ -514,7 +543,7 @@ function finishMatch(t, m, winnerSide, type, note) {
     }
 
     // Who got knocked out, and how far did they get?
-    const info = { k: t.k, format: t.format, resetEnabled: t.settings.grandFinalReset };
+    const info = { k: t.k, format: t.format, resetEnabled: t.settings.grandFinalReset, hasP3: matchesOf(t).some(x => x.bracket === 'P3') };
     const sidesToPlace = winnerSide === null ? [0, 1] : m.bracket === 'P3' ? [0, 1] : [1 - winnerSide];
     for (const s of sidesToPlace) {
         const e = sideEntry(t, m, s);
@@ -556,6 +585,13 @@ function checkComplete(t) {
     const last = finals.find(m => m.bracket === 'GF' && m.round === 2) || finals.find(m => m.bracket === 'GF') || finals[0];
     const champ = last ? entryOf(t, last.winnerEntryId) : null;
     if (champ) { champ.elimStage = CHAMPION_STAGE; champ.elimMatchId = null; }
+    // A lone side-final loser who reached the 3rd place match on a bye still finishes 3rd.
+    for (const m of ms) {
+        if (m.bracket === 'P3' && m.result && m.result.type === 'bye' && m.winnerEntryId !== VOID) {
+            const e = entryOf(t, m.winnerEntryId);
+            if (e && !e.dq) { e.elimStage = t.k + 0.5; e.elimMatchId = m.id; }
+        }
+    }
     const places = bracket.placements(t.entries);
     t.placements = t.entries.map(e => ({ entryId: e.id, place: places.get(e.id) })).sort((a, b) => a.place - b.place);
     t.awards = [];
@@ -606,22 +642,23 @@ function revertCompletion(t) {
 
 // ── Referee actions ─────────────────────────────────────────────────────────
 function canRef(user, m) {
-    if (!hasRole(user, 'ref')) return false;
     const t = db.data.tournaments[m.tournamentId];
-    return sideOfUser(t, m, user.id) < 0; // nobody refs their own match
+    if (!t || !isStaffOf(user, t)) return false;
+    return sideOfUser(t, m, user.id) < 0; // nobody scores their own match
 }
 
 function assertRef(user, m, { mustOwn = true } = {}) {
-    if (!canRef(user, m)) throw new HttpError(403, hasRole(user, 'ref') ? "You can't referee your own match" : 'Referees only');
-    if (mustOwn && m.refId !== user.id && !hasRole(user, 'admin')) throw new HttpError(403, 'Claim this match first');
+    const t = db.data.tournaments[m.tournamentId];
+    if (!canRef(user, m)) throw new HttpError(403, t && isStaffOf(user, t) ? "You can't score your own match" : "Only this tournament's admins can score matches");
+    if (mustOwn && m.refId !== user.id && !isOwner(user)) throw new HttpError(403, 'Take this match first');
 }
 
 function claim(m, user) {
     assertRef(user, m, { mustOwn: false });
     if (!['scheduled', 'ready', 'live'].includes(m.status)) throw bad('This match is not active');
-    if (m.refId && m.refId !== user.id && !hasRole(user, 'admin')) throw bad(`${nameOf(m.refId)} is already refereeing this match`);
+    if (m.refId && m.refId !== user.id && !isOwner(user)) throw bad(`${nameOf(m.refId)} is already running this match`);
     m.refId = user.id;
-    chat.system(`match:${m.id}`, `🎥 ${nameOf(user.id)} is your referee. Invite them to your Roblox server so they can watch the fight.`, { event: 'ref' });
+    chat.system(`match:${m.id}`, `🎥 ${nameOf(user.id)} (admin) is running your match. Invite them to your Roblox server so they can watch the fight.`, { event: 'ref' });
     db.save();
     emitM(m);
 }
@@ -630,7 +667,7 @@ function release(m, user) {
     assertRef(user, m);
     if (m.status === 'live') throw bad('Finish or undo the match before releasing it');
     m.refId = null;
-    chat.system(`match:${m.id}`, `${nameOf(user.id)} is no longer refereeing this match.`);
+    chat.system(`match:${m.id}`, `${nameOf(user.id)} is no longer running this match.`);
     db.save();
     emitM(m);
 }
@@ -740,7 +777,7 @@ function refForfeit(m, user, loserSide, reason) {
 
 function reschedule(m, user, at) {
     const t = getT(m.tournamentId);
-    if (!hasRole(user, 'ref')) throw new HttpError(403, 'Referees only');
+    assertManage(t, user);
     if (!['scheduled'].includes(m.status)) throw bad('Only matches waiting for check-in can be rescheduled');
     setMatchTime(t, m, at, `🗓️ ${nameOf(user.id)} rescheduled the match`);
 }
@@ -798,9 +835,9 @@ function callRef(m, user) {
     if (sideOfUser(t, m, user.id) < 0) throw new HttpError(403, 'You are not playing in this match');
     if (m.lastRefCall && Date.now() - new Date(m.lastRefCall).getTime() < 2 * MIN) throw bad('A referee was just called — give them a moment');
     m.lastRefCall = nowIso();
-    chat.system(`match:${m.id}`, `🔔 ${nameOf(user.id)} called for a referee.`, { event: 'callref' });
-    const staff = m.refId ? [m.refId] : users.staffIds();
-    for (const uid of staff) users.notify(uid, { type: 'ref', text: `${nameOf(user.id)} needs a referee in ${t.name} · ${m.label}`, link: `/m/${m.id}` });
+    chat.system(`match:${m.id}`, `🔔 ${nameOf(user.id)} called for an admin.`, { event: 'callref' });
+    const staff = m.refId ? [m.refId] : staffIdsOf(t);
+    for (const uid of staff) users.notify(uid, { type: 'ref', text: `${nameOf(user.id)} needs an admin in ${t.name} · ${m.label}`, link: `/m/${m.id}` });
     db.save();
 }
 
@@ -889,6 +926,75 @@ function reopenMatch(m, user) {
     emitT(t);
 }
 
+// ── Admin team of a tournament ──────────────────────────────────────────────
+function setStaff(t, userIds, by) {
+    assertManage(t, by);
+    const ids = [...new Set((userIds || []).map(String))];
+    for (const uid of ids) {
+        const u = users.get(uid);
+        if (!u || u.deleted) throw bad('Unknown player');
+        if (!hasRole(u, 'admin')) throw bad(`${u.displayName} isn't an admin yet — the owner can make them one`);
+        if (entryForUser(t, uid)) throw bad(`${u.displayName} is playing in this tournament, so they can't be one of its admins`);
+    }
+    if (!ids.length) throw bad('A tournament needs at least one admin');
+    const added = ids.filter(id => !(t.staff || []).includes(id));
+    t.staff = ids;
+    for (const uid of added) users.notify(uid, { type: 'role', text: `You're now an admin of ${t.name}`, link: `/t/${t.id}` });
+    db.save();
+    emitT(t);
+}
+
+// ── Force join (admins add players, teams or bots) ─────────────────────────
+function forceJoin(t, by, { userId, teamId }) {
+    assertManage(t, by);
+    if (!['registration', 'checkin'].includes(t.status)) throw bad('You can only add people before the tournament starts');
+    const u = users.get(userId || (teamId && db.data.teams[teamId] && db.data.teams[teamId].members[0]));
+    if (!u) throw bad('Pick a player or team');
+    const entry = register(t, u, teamId ? { teamId } : { solo: true });
+    entry.checkedIn = true;
+    entry.addedBy = by.id;
+    db.save();
+    return entry;
+}
+
+const BOT_NAMES = ['Blaze', 'Nova', 'Turbo', 'Pixel', 'Rocket', 'Comet', 'Cactus', 'Magma', 'Frost', 'Orbit', 'Storm', 'Yeet', 'Ragdoll', 'Noodle', 'Bolt', 'Toast'];
+function makeBot(name) {
+    let base = name && String(name).trim() ? String(name).trim().replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 20) : '';
+    if (!base) base = `Bot${BOT_NAMES[Math.floor(Math.random() * BOT_NAMES.length)]}`;
+    let username = base;
+    for (let i = 2; db.userByName(username); i++) username = `${base}${i}`;
+    const u = users.newUser({ username, passwordHash: null });
+    u.isBot = true;
+    u.displayName = username;
+    u.profile.bio = 'Practice bot — controlled by the tournament admins.';
+    db.data.users[u.id] = u;
+    db.indexUser(u);
+    return u;
+}
+
+function addBots(t, by, count) {
+    assertManage(t, by);
+    if (!['registration', 'checkin'].includes(t.status)) throw bad('Add bots before the tournament starts');
+    const n = Math.max(1, Math.min(64, Number(count) || 1));
+    const room = t.maxEntrants - t.entries.length;
+    if (room <= 0) throw bad('The tournament is full');
+    const made = [];
+    for (let i = 0; i < Math.min(n, room); i++) {
+        const a = makeBot();
+        if (t.mode === 'duo') {
+            const b = makeBot();
+            const team = { id: db.id('tm'), name: `${a.username} & ${b.username}`.slice(0, 24), tag: 'BOT', color: '#8a93a6', captainId: a.id, members: [a.id, b.id], createdAt: nowIso(), isBot: true, history: [] };
+            db.data.teams[team.id] = team;
+            made.push(forceJoin(t, by, { teamId: team.id }));
+        } else {
+            made.push(forceJoin(t, by, { userId: a.id }));
+        }
+    }
+    db.save();
+    emitT(t);
+    return made;
+}
+
 // ── Scheduler tick ──────────────────────────────────────────────────────────
 function tick() {
     const now = Date.now();
@@ -931,6 +1037,7 @@ function matchCompact(m) {
         score: duelsLib.wins(m.duels || []),
         refId: m.refId || null,
         liveDuel: m.status === 'live' ? (currentDuel(m) || null) : null,
+        waiting: Boolean(m.waiting), secondChance: Boolean(m.secondChance), sideFinal: Boolean(m.sideFinal), xRound: m.xRound || null,
     };
 }
 
@@ -939,7 +1046,7 @@ function summary(t) {
     return {
         id: t.id, name: t.name, mode: t.mode, format: t.format, status: t.status,
         startAt: t.startAt, maxEntrants: t.maxEntrants, entrantCount: t.entries.length,
-        prize: t.prize, accent: t.accent, createdAt: t.createdAt, startedAt: t.startedAt || null, completedAt: t.completedAt || null,
+        prize: t.prize, prizes: t.prizes || { first: t.prize || '', second: '', third: '' }, accent: t.accent, createdAt: t.createdAt, startedAt: t.startedAt || null, completedAt: t.completedAt || null,
         settings: t.settings,
         champion: champ ? { name: champ.name, members: champ.members.map(id => users.summary(users.get(id))) } : null,
         liveMatches: t.status === 'live' ? matchesOf(t).filter(m => m.status === 'live').length : 0,
@@ -949,8 +1056,9 @@ function summary(t) {
 
 function detail(t, viewer) {
     const mine = viewer ? entryForUser(t, viewer.id) : null;
-    const isAdmin = hasRole(viewer, 'admin');
+    const isAdmin = isStaffOf(viewer, t);
     if (t.status === 'draft' && !isAdmin) throw new HttpError(404, 'Tournament not found');
+    const isStaffMember = Boolean(viewer) && (t.staff || []).includes(viewer.id);
     return {
         ...summary(t),
         description: t.description, rules: t.rules,
@@ -959,8 +1067,11 @@ function detail(t, viewer) {
         placements: t.placements,
         k: t.k,
         myEntryId: mine ? mine.id : null,
+        staff: (t.staff || []).map(id => users.summary(users.get(id))),
         viewer: {
-            canRegister: Boolean(viewer) && !mine && ['registration', 'checkin'].includes(t.status) && t.entries.length < t.maxEntrants,
+            isStaffMember,
+            isOwner: isOwner(viewer),
+            canRegister: Boolean(viewer) && !mine && !isStaffMember && ['registration', 'checkin'].includes(t.status) && t.entries.length < t.maxEntrants,
             canWithdraw: Boolean(mine) && ['registration', 'checkin'].includes(t.status),
             canCheckin: Boolean(mine) && t.status === 'checkin' && !mine.checkedIn,
             isAdmin,
@@ -971,7 +1082,7 @@ function detail(t, viewer) {
 function matchDetail(m, viewer) {
     const t = getT(m.tournamentId);
     const side = viewer ? sideOfUser(t, m, viewer.id) : -1;
-    const staff = hasRole(viewer, 'ref');
+    const staff = isStaffOf(viewer, t);
     const sides = [0, 1].map(s => {
         const e = sideEntry(t, m, s);
         if (!e) return null;
@@ -1003,7 +1114,8 @@ function matchDetail(m, viewer) {
             side,
             isParticipant: side >= 0,
             isStaff: staff,
-            isAdmin: hasRole(viewer, 'admin'),
+            isAdmin: staff,
+            isOwner: isOwner(viewer),
             isRef: Boolean(viewer) && m.refId === (viewer && viewer.id),
             canRef: Boolean(viewer) && canRef(viewer, m),
             canChat: Boolean(viewer) && (side >= 0 || staff),
@@ -1032,10 +1144,10 @@ function matchesForUser(uid, { includeDone = false } = {}) {
     return out;
 }
 
-function refQueue() {
+function refQueue(user) {
     const out = [];
     for (const t of Object.values(db.data.tournaments)) {
-        if (t.status !== 'live') continue;
+        if (t.status !== 'live' || !isStaffOf(user, t)) continue;
         for (const m of matchesOf(t)) {
             if (!['scheduled', 'ready', 'live'].includes(m.status)) continue;
             out.push({
@@ -1054,6 +1166,7 @@ function refQueue() {
 }
 
 module.exports = {
+    isStaffOf, isOwner, assertManage, setStaff, forceJoin, addBots, makeBot,
     getT, getM, matchesOf, entryOf, entryForUser, sideOfUser,
     createTournament, updateTournament, publish, cancelTournament, deleteTournament,
     register, withdraw, removeEntry, checkin, openCheckin, startTournament,

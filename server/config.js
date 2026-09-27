@@ -46,7 +46,7 @@ module.exports = {
     // ── Tournament defaults (admins can override per tournament) ────────────
     tournamentDefaults: {
         mode: 'solo',
-        format: 'single',
+        format: 'twosided',      // two sides meeting in the middle (classic FTAP)
         maxEntrants: 32,
         checkinMinutes: 30,      // tournament check-in opens this long before start
         matchPrepMinutes: 10,    // time between a match becoming ready and its start
@@ -58,7 +58,8 @@ module.exports = {
         allowSoloTeams: true,
         requireRoblox: false,
         grandFinalReset: true,
-        thirdPlaceMatch: false,
+        thirdPlaceMatch: true,
+        secondChances: true,     // losers bracket: losers fight to get back in
         drawRule: 'duels',       // 'duels' → 1-1 goes to decider; 'kills' → total kills first
     },
 

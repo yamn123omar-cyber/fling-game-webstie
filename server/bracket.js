@@ -109,6 +109,121 @@ function generate(entryIds, opts, newId) {
     return { matches, size, k, format };
 }
 
+// ── Classic FTAP format: two sides that meet in the middle ─────────────────
+// Entrants are split into a left and a right side (seed 1 left, seed 2 right,
+// then snake so both sides are equally strong). Each side plays down to a side
+// champion; the two side champions play the Final in the middle.
+//
+// Second chances ("losers bracket"): when a round on a side has an odd number
+// of players, one player is left without an opponent. Instead of a free pass,
+// everyone who lost in that round plays a small knockout, and its winner comes
+// back into the bracket to face the waiting player. Round 1 still uses a bye.
+
+function sideLabel(side) { return side === 'L' ? 'Left' : 'Right'; }
+
+// Order matches so the strongest ones are far apart in the tree.
+function spreadOrder(count) {
+    return seedOrder(nextPow2(count)).filter(s => s <= count).map(s => s - 1);
+}
+
+function generateTwoSided(entryIds, opts, newId) {
+    const n = entryIds.length;
+    if (n < 2) throw new Error('Need at least 2 entrants');
+    const secondChances = opts.secondChances !== false;
+    const matches = [];
+    const win = m => ({ type: 'winner', matchId: m.id });
+    const lose = m => ({ type: 'loser', matchId: m.id });
+    const seedSrc = i => ({ type: 'seed', seed: i + 1, entryId: entryIds[i] });
+    const voidSrc = { type: 'seed', seed: null, entryId: VOID };
+    const mk = (fields, sources) => {
+        const m = { id: newId(), slots: sources.map(source => ({ source, entryId: null })), status: 'pending', ...fields };
+        matches.push(m);
+        return m;
+    };
+
+    // Snake split: 1→L, 2→R, 3→R, 4→L, 5→L, 6→R …
+    const sides = { L: [], R: [] };
+    entryIds.forEach((_, i) => {
+        const block = Math.floor(i / 2);
+        const first = i % 2 === 0;
+        const side = (block % 2 === 0) === first ? 'L' : 'R';
+        sides[side].push(i);
+    });
+
+    const sideInfo = {};
+    for (const side of ['L', 'R']) {
+        const seeds = sides[side];
+        const rounds = [];
+        if (seeds.length === 1) {
+            sideInfo[side] = { champion: seedSrc(seeds[0]), finalMatch: null, rounds };
+            continue;
+        }
+        // Round 1: top seed gets the bye when odd; the rest play best vs worst.
+        const pairs = [];
+        let rest = seeds.slice();
+        if (rest.length % 2 === 1) { pairs.push([seedSrc(rest[0]), voidSrc]); rest = rest.slice(1); }
+        for (let i = 0; i < rest.length / 2; i++) pairs.push([seedSrc(rest[i]), seedSrc(rest[rest.length - 1 - i])]);
+        const order = spreadOrder(pairs.length);
+        let prev = order.map((pi, idx) => mk({ bracket: side, round: 1, index: idx, label: `${sideLabel(side)} · Round 1` }, pairs[pi]));
+        rounds.push(prev);
+
+        let r = 2;
+        while (prev.length > 1) {
+            const count = Math.ceil(prev.length / 2);
+            const odd = prev.length % 2 === 1;
+            const round = [];
+            for (let i = 0; i < count; i++) {
+                const a = prev[2 * i];
+                const b = prev[2 * i + 1];
+                const fields = { bracket: side, round: r, index: i, label: `${sideLabel(side)} · Round ${r}` };
+                if (b) round.push(mk(fields, [win(a), win(b)]));
+                else round.push(mk({ ...fields, waiting: true }, [win(a), null])); // second slot filled below
+            }
+            if (odd) {
+                const waitingMatch = round[round.length - 1];
+                const full = round.filter(m => !m.waiting);
+                let comeback = voidSrc;
+                if (secondChances && full.length) {
+                    // Everyone who loses a full match this round plays for the comeback spot.
+                    let pool = full.map(lose);
+                    let xr = 1;
+                    while (pool.length > 1) {
+                        const next = [];
+                        if (pool.length % 2 === 1) next.push(pool.shift()); // best-placed loser waits a round
+                        for (let i = 0; i < pool.length; i += 2) {
+                            const x = mk({
+                                bracket: `X${side}`, round: r, index: next.length, xRound: xr,
+                                label: `${sideLabel(side)} · Second chance (Round ${r})`,
+                            }, [pool[i], pool[i + 1]]);
+                            next.push(win(x));
+                        }
+                        pool = next;
+                        xr++;
+                    }
+                    comeback = pool[0];
+                    for (const m of full) m.secondChance = true;
+                }
+                waitingMatch.slots[1] = { source: comeback, entryId: null };
+            }
+            rounds.push(round);
+            prev = round;
+            r++;
+        }
+        const finalMatch = prev[0];
+        finalMatch.sideFinal = true;
+        finalMatch.label = `${sideLabel(side)} side final`;
+        sideInfo[side] = { champion: win(finalMatch), finalMatch, rounds };
+    }
+
+    const top = Math.max(sideInfo.L.rounds.length, sideInfo.R.rounds.length, 1);
+    const final = mk({ bracket: 'F', round: top + 1, index: 0, label: 'Final', isFinal: true }, [sideInfo.L.champion, sideInfo.R.champion]);
+    if (opts.thirdPlaceMatch !== false && sideInfo.L.finalMatch && sideInfo.R.finalMatch) {
+        mk({ bracket: 'P3', round: top + 1, index: 0, label: '3rd place match' }, [lose(sideInfo.L.finalMatch), lose(sideInfo.R.finalMatch)]);
+    }
+    void final;
+    return { matches, format: 'twosided', k: top, size: n };
+}
+
 /**
  * Fill in slots whose source match has finished and auto-complete byes.
  * @param {object[]} matches   all matches of one tournament (mutated)
@@ -190,6 +305,17 @@ function complete(m, winnerSide, type) {
  */
 function eliminationStage(m, side, info) {
     const { k, format, dq } = info;
+    if (format === 'twosided') {
+        if (dq) return 0;
+        if (m.bracket === 'F') return k + 1;                          // runner-up
+        if (m.bracket === 'P3') return side === m.winnerSide ? k + 0.5 : k;
+        if (m.bracket === 'L' || m.bracket === 'R') {
+            if (m.sideFinal) return info.hasP3 ? null : k;             // plays for 3rd
+            if (m.secondChance) return null;                           // drops to the losers bracket
+            return m.round;
+        }
+        return m.round;                                                // lost in the losers bracket
+    }
     const topStage = format === 'double' ? Math.max(1, 2 * (k - 1)) + 1 : k;
     if (m.bracket === 'W') {
         if (format === 'single') return m.round;
@@ -222,4 +348,4 @@ function dependents(matches, m) {
     return matches.filter(x => x.resetOf === m.id || x.slots.some(s => s.source.type !== 'seed' && s.source.matchId === m.id));
 }
 
-module.exports = { VOID, generate, resolve, complete, eliminationStage, placements, dependents, seedOrder, nextPow2, roundName };
+module.exports = { VOID, generate, generateTwoSided, resolve, complete, eliminationStage, placements, dependents, seedOrder, nextPow2, roundName };

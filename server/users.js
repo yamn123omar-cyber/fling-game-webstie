@@ -36,6 +36,7 @@ function newUser({ username, passwordHash, role = 'player' }) {
             title: '',
             socials: {},
             favoriteMode: 'solo',
+            privacy: { bio: 'public', stats: 'public', history: 'public' },
         },
         roblox: null,
         robloxPending: null,
@@ -50,8 +51,9 @@ function badges(u) {
     const s = u.stats;
     const both = k => (s.solo[k] || 0) + (s.duo[k] || 0);
     const out = [];
-    if (u.role === 'admin') out.push({ id: 'admin', name: 'Organizer', desc: 'Runs the tournaments' });
-    if (u.role === 'ref' || u.role === 'admin') out.push({ id: 'ref', name: 'Referee', desc: 'Watches fights and records scores' });
+    if (u.role === 'owner') out.push({ id: 'owner', name: 'Owner', desc: 'Runs FTAP Arena' });
+    if (u.role === 'admin' || u.role === 'ref') out.push({ id: 'admin', name: 'Admin', desc: 'Runs tournaments and scores matches' });
+    if (u.isBot) out.push({ id: 'bot', name: 'Bot', desc: 'Practice bot controlled by admins' });
     if (u.roblox && u.roblox.verified) out.push({ id: 'verified', name: 'Verified', desc: 'Roblox account verified' });
     if (both('titles') > 0) out.push({ id: 'champion', name: `Champion ×${both('titles')}`, desc: 'Won a tournament' });
     if (both('podiums') > 0) out.push({ id: 'podium', name: 'Podium', desc: 'Finished top 3 in a tournament' });
@@ -70,7 +72,8 @@ function summary(u) {
         id: u.id,
         username: u.username,
         displayName: u.displayName || u.username,
-        role: u.role,
+        role: u.role === 'ref' ? 'admin' : u.role,
+        isBot: Boolean(u.isBot),
         accent: u.profile.accent,
         robloxId: u.roblox && u.roblox.verified ? u.roblox.id : null,
         robloxName: u.roblox && u.roblox.verified ? u.roblox.name : null,
@@ -160,7 +163,7 @@ function notify(userId, { type, text, link = null, data = null }) {
 }
 
 function staffIds() {
-    return Object.values(db.data.users).filter(u => !u.deleted && !u.banned && (u.role === 'ref' || u.role === 'admin')).map(u => u.id);
+    return Object.values(db.data.users).filter(u => !u.deleted && !u.banned && ['ref', 'admin', 'owner'].includes(u.role)).map(u => u.id);
 }
 
 module.exports = { newUser, get, summary, profile, privateView, applyDelta, revertDelta, notify, modeStats, staffIds, ACCENTS, BANNERS, SOCIALS };

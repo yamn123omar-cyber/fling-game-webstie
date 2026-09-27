@@ -3,7 +3,7 @@ const db = require('./db');
 
 const COOKIE = 'ftap_session';
 const SESSION_DAYS = 30;
-const ROLE_RANK = { player: 0, ref: 1, admin: 2 };
+const ROLE_RANK = { player: 0, ref: 1, admin: 1, owner: 2 };
 
 function hashPassword(password) {
     const salt = crypto.randomBytes(16);

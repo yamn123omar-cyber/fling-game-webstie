@@ -109,3 +109,72 @@ test('dependents finds the matches fed by a result', () => {
     const deps = bracket.dependents(gen.matches, wb1);
     assert.strictEqual(deps.length, 2); // winners round 2 + losers round 1
 });
+
+// ── Two-sided classic format ────────────────────────────────────────────────
+function playTwoSided(count, pick, opts = {}) {
+    const gen = bracket.generateTwoSided(ids(count), opts, newId);
+    const hasP3 = gen.matches.some(m => m.bracket === 'P3');
+    const stage = {};
+    const losses = {};
+    bracket.resolve(gen.matches);
+    let ready = gen.matches.filter(m => m.status === 'scheduled');
+    let guard = 0;
+    while (ready.length && guard++ < 2000) {
+        for (const m of ready) {
+            const w = pick(m);
+            bracket.complete(m, w, 'played');
+            const loser = m.slots[1 - w].entryId;
+            losses[loser] = (losses[loser] || 0) + 1;
+            const s = bracket.eliminationStage(m, 1 - w, { k: gen.k, format: 'twosided', hasP3 });
+            if (s !== null) stage[loser] = s;
+            if (m.bracket === 'P3') stage[m.slots[w].entryId] = bracket.eliminationStage(m, w, { k: gen.k, format: 'twosided', hasP3 });
+        }
+        bracket.resolve(gen.matches);
+        ready = gen.matches.filter(m => m.status === 'scheduled');
+    }
+    return { gen, stage, losses };
+}
+const seedNum = id => Number(id.slice(1));
+const favourite = m => (seedNum(m.slots[0].entryId) < seedNum(m.slots[1].entryId) ? 0 : 1);
+
+test('two-sided: seeds 1 and 2 start on opposite sides and meet in the final', () => {
+    const { gen } = playTwoSided(8, favourite);
+    const final = gen.matches.find(m => m.bracket === 'F');
+    assert.deepStrictEqual(final.slots.map(s => s.entryId).sort(), ['e1', 'e2']);
+    assert.strictEqual(final.winnerEntryId, 'e1');
+});
+
+test('two-sided: odd rounds give losers a second chance instead of a free pass', () => {
+    // 10 entrants → 5 per side → Round 2 has 3 players, so its losers fight to come back.
+    const gen = bracket.generateTwoSided(ids(10), {}, newId);
+    const xl = gen.matches.filter(m => m.bracket === 'XL');
+    const waiting = gen.matches.filter(m => m.bracket === 'L' && m.waiting);
+    assert.strictEqual(waiting.length, 1);
+    assert.ok(waiting[0].slots[1].source.type === 'loser' || xl.length > 0, 'comeback slot is fed by a loser');
+});
+
+test('two-sided: second chances can be switched off (waiting player gets a bye)', () => {
+    const gen = bracket.generateTwoSided(ids(10), { secondChances: false }, newId);
+    assert.strictEqual(gen.matches.filter(m => m.bracket.startsWith('X')).length, 0);
+    const waiting = gen.matches.find(m => m.waiting);
+    assert.strictEqual(waiting.slots[1].source.entryId, bracket.VOID);
+});
+
+for (const count of [2, 3, 4, 5, 6, 7, 9, 10, 13, 16, 21, 33]) {
+    test(`two-sided completes with ${count} entrants and places everyone`, () => {
+        let flip = 0;
+        const { gen, stage } = playTwoSided(count, () => (flip++ % 3 === 0 ? 1 : 0));
+        assert.ok(gen.matches.every(m => m.status === 'done'), 'every match finished');
+        const final = gen.matches.find(m => m.bracket === 'F');
+        const champ = final.winnerEntryId;
+        // P3 byes (a side with one player) place the lone side-final loser 3rd
+        for (const m of gen.matches) if (m.bracket === 'P3' && m.result.type === 'bye' && m.winnerEntryId !== bracket.VOID) stage[m.winnerEntryId] = gen.k + 0.5;
+        const places = bracket.placements(ids(count).map(id => ({ id, elimStage: id === champ ? 1e9 : stage[id] })));
+        assert.strictEqual(places.get(champ), 1);
+        for (const id of ids(count)) assert.ok(id === champ || stage[id] !== undefined, `${id} has a finishing position`);
+        if (count >= 4) {
+            const second = [...places.entries()].filter(([, p]) => p === 2);
+            assert.strictEqual(second.length, 1, 'exactly one runner-up');
+        }
+    });
+}

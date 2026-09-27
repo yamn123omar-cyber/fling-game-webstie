@@ -9,6 +9,7 @@ const path = require('path');
 process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'ftap-test-'));
 delete process.env.DISCORD_BOT_TOKEN;
 process.env.REGISTER_LIMIT_PER_HOUR = '1000';
+process.env.OWNER_USERNAME = 'organizer';
 
 const db = require('../server/db');
 const T = require('../server/tournaments');
@@ -51,7 +52,7 @@ test.after(() => server.close());
 
 test('full duo tournament: teams, a team of 1, check-in, ref scoring, decider, no-show, reopen', async () => {
     const admin = await signup('organizer');
-    assert.strictEqual(admin.role, 'admin', 'first account becomes admin');
+    assert.strictEqual(admin.role, 'owner', 'OWNER_USERNAME becomes the owner');
     const ref = await signup('refbot');
     const [p1, p2, p3, p4, s5, outsider] = await Promise.all(['alpha', 'bravo', 'charlie', 'delta', 'lonewolf', 'nosy'].map(signup));
 
@@ -59,11 +60,13 @@ test('full duo tournament: teams, a team of 1, check-in, ref scoring, decider, n
     const raw = await fetch(base + '/api/auth/logout', { method: 'POST' });
     assert.strictEqual(raw.status, 403);
 
-    // Staff roles
-    let r = await admin('POST', `/api/admin/users/${ref.id}/role`, { role: 'ref' });
+    // Roles: only the owner hands out admin
+    let r = await admin('POST', `/api/admin/users/${ref.id}/role`, { role: 'admin' });
     assert.strictEqual(r.status, 200);
     r = await p1('POST', `/api/admin/users/${p1.id}/role`, { role: 'admin' });
     assert.strictEqual(r.status, 403, 'players cannot promote themselves');
+    r = await ref('POST', `/api/admin/users/${p1.id}/role`, { role: 'admin' });
+    assert.strictEqual(r.status, 403, 'admins cannot promote others');
 
     // Friends + teams
     r = await p1('POST', '/api/friends/requests', { username: 'bravo' });
@@ -83,12 +86,21 @@ test('full duo tournament: teams, a team of 1, check-in, ref scoring, decider, n
 
     // Tournament
     r = await admin('POST', '/api/tournaments', {
-        name: 'Test Duo Cup', mode: 'duo', format: 'single', maxEntrants: 8,
+        name: 'Test Duo Cup', mode: 'duo', maxEntrants: 8,
         startAt: new Date(Date.now() + 20 * 60_000).toISOString(), publish: true,
     });
     assert.strictEqual(r.status, 200, JSON.stringify(r.body));
     const tid = r.body.tournament.id;
     assert.strictEqual(r.body.tournament.status, 'registration');
+    assert.strictEqual(r.body.tournament.format, 'twosided');
+
+    // The owner created it, so they're on its admin team; add refbot too.
+    r = await admin('POST', `/api/tournaments/${tid}/staff`, { userIds: [admin.id, ref.id] });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    r = await ref('POST', `/api/tournaments/${tid}/register`, { solo: true });
+    assert.strictEqual(r.status, 400, 'tournament admins cannot play in their own tournament');
+    r = await p1('POST', `/api/tournaments/${tid}/staff`, { userIds: [p1.id] });
+    assert.strictEqual(r.status, 403, 'players cannot make themselves admins of a tournament');
 
     r = await p1('POST', `/api/tournaments/${tid}/register`, { teamId: team1 });
     assert.strictEqual(r.status, 200, JSON.stringify(r.body));
@@ -197,31 +209,72 @@ test('full duo tournament: teams, a team of 1, check-in, ref scoring, decider, n
     assert.strictEqual(r.status, 200);
 });
 
-test('solo tournament: best of 3, refs cannot referee themselves', async () => {
-    const admin = client();
-    await admin('POST', '/api/auth/login', { username: 'organizer', password: 'hunter22' });
+test('solo tournament: admins can only score tournaments they run, never their own matches', async () => {
+    const owner = client();
+    owner.id = (await owner('POST', '/api/auth/login', { username: 'organizer', password: 'hunter22' })).body.user.id;
     const a = await signup('soloA');
     const b = await signup('soloB');
-    let r = await admin('POST', '/api/tournaments', {
-        name: 'Solo Sunday', mode: 'solo', format: 'double', maxEntrants: 4,
+    const judge = await signup('judgeJudy');
+    await owner('POST', `/api/admin/users/${judge.id}/role`, { role: 'admin' });
+    await owner('POST', `/api/admin/users/${b.id}/role`, { role: 'admin' }); // b is an admin but plays here
+
+    let r = await owner('POST', '/api/tournaments', {
+        name: 'Solo Sunday', mode: 'solo', maxEntrants: 4,
         startAt: new Date(Date.now() + 2 * 3600_000).toISOString(), publish: true,
         settings: { checkinMinutes: 0, bestOf: 3, finalBestOf: 3 },
     });
     const tid = r.body.tournament.id;
     await a('POST', `/api/tournaments/${tid}/register`);
-    await admin('POST', `/api/tournaments/${tid}/register`);
-    r = await admin('POST', `/api/tournaments/${tid}/start`);
+    r = await b('POST', `/api/tournaments/${tid}/register`);
+    assert.strictEqual(r.status, 200, 'an admin can play in a tournament they do not run');
+    r = await owner('POST', `/api/tournaments/${tid}/staff`, { userIds: [owner.id, b.id] });
+    assert.strictEqual(r.status, 400, 'a registered player cannot be added to the admin team');
+
+    r = await owner('POST', `/api/tournaments/${tid}/start`);
     const m = r.body.tournament.matches.find(x => x.status === 'scheduled');
-    for (const c of [a, admin]) await c('POST', `/api/matches/${m.id}/checkin`);
-    r = await admin('POST', `/api/matches/${m.id}/claim`);
-    assert.strictEqual(r.status, 403, 'admin is playing, so cannot referee this match');
-    const ref = client();
-    await ref('POST', '/api/auth/login', { username: 'refbot', password: 'hunter22' });
-    await ref('POST', `/api/matches/${m.id}/claim`);
-    await ref('POST', `/api/matches/${m.id}/start`);
-    await ref('POST', `/api/matches/${m.id}/duel`, { scores: [5, 1] });
-    r = await ref('POST', `/api/matches/${m.id}/duel`, { scores: [5, 4] });
+    for (const c of [a, b]) await c('POST', `/api/matches/${m.id}/checkin`);
+    r = await judge('POST', `/api/matches/${m.id}/claim`);
+    assert.strictEqual(r.status, 403, 'admins cannot score tournaments they are not running');
+    await owner('POST', `/api/tournaments/${tid}/staff`, { userIds: [owner.id, judge.id] });
+    r = await judge('POST', `/api/matches/${m.id}/claim`);
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    await judge('POST', `/api/matches/${m.id}/start`);
+    await judge('POST', `/api/matches/${m.id}/duel`, { scores: [5, 1] });
+    r = await judge('POST', `/api/matches/${m.id}/duel`, { scores: [5, 4] });
     assert.strictEqual(r.body.match.status, 'done');
     assert.deepStrictEqual(r.body.match.score, [2, 0]);
-    void b;
+});
+
+test('bots join, check in by themselves and can be scored', async () => {
+    const owner = client();
+    await owner('POST', '/api/auth/login', { username: 'organizer', password: 'hunter22' });
+    let r = await owner('POST', '/api/tournaments', {
+        name: 'Bot Brawl', mode: 'duo', maxEntrants: 8,
+        startAt: new Date(Date.now() + 3600_000).toISOString(), publish: true, settings: { checkinMinutes: 0 },
+    });
+    const tid = r.body.tournament.id;
+    r = await owner('POST', `/api/tournaments/${tid}/bots`, { count: 5 });
+    assert.strictEqual(r.status, 200, JSON.stringify(r.body));
+    assert.strictEqual(r.body.tournament.entries.length, 5);
+    r = await owner('POST', `/api/tournaments/${tid}/start`);
+    const ready = r.body.tournament.matches.filter(x => x.status === 'ready');
+    assert.ok(ready.length >= 1, 'bot matches skip straight to ready (everyone checked in)');
+    r = await owner('POST', `/api/matches/${ready[0].id}/claim`);
+    assert.strictEqual(r.status, 200);
+    const lb = await owner('GET', '/api/leaderboard?mode=duo');
+    assert.ok(lb.body.rows.every(x => !x.user.isBot), 'bots stay off the leaderboard');
+});
+
+test('profiles show who you fought and respect privacy', async () => {
+    const viewer = client();
+    const alpha = await viewer('GET', '/api/users/soloA');
+    assert.ok(alpha.body.opponents.some(o => o.user.username === 'soloB' && o.duelsWon === 2), 'soloA beat soloB twice');
+    const me = client();
+    await me('POST', '/api/auth/login', { username: 'soloA', password: 'hunter22' });
+    await me('PATCH', '/api/me/profile', { privacy: { stats: 'private', history: 'friends', bio: 'public' } });
+    const hidden = await viewer('GET', '/api/users/soloA');
+    assert.strictEqual(hidden.body.user.stats, null);
+    assert.deepStrictEqual(hidden.body.opponents, []);
+    const self = await me('GET', '/api/users/soloA');
+    assert.ok(self.body.user.stats, 'you always see your own stats');
 });

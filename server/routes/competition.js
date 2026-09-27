@@ -27,12 +27,12 @@ router.get('/config', route(() => ({
 
 // ── Tournaments ─────────────────────────────────────────────────────────────
 router.get('/tournaments', route(req => {
-    const admin = hasRole(req.user, 'admin');
-    const list = Object.values(db.data.tournaments).filter(t => admin || t.status !== 'draft').map(t => {
+    const list = Object.values(db.data.tournaments).filter(t => t.status !== 'draft' || T.isStaffOf(req.user, t)).map(t => {
         const s = T.summary(t);
         if (req.user) {
             const e = T.entryForUser(t, req.user.id);
             s.myEntry = e ? { id: e.id, name: e.name, checkedIn: Boolean(e.checkedIn), place: e.place || null } : null;
+            s.iAmAdmin = (t.staff || []).includes(req.user.id);
         }
         return s;
     });
@@ -41,33 +41,44 @@ router.get('/tournaments', route(req => {
 
 router.get('/tournaments/:id', route(req => ({ tournament: T.detail(T.getT(req.params.id), req.user) })));
 
+// Any admin (or the owner) can create a tournament; they run it.
 router.post('/tournaments', requireRole('admin'), route(req => ({ tournament: T.detail(T.createTournament(req.body || {}, req.user), req.user) })));
 
-router.patch('/tournaments/:id', requireRole('admin'), route(req => ({ tournament: T.detail(T.updateTournament(T.getT(req.params.id), req.body || {}), req.user) })));
+router.patch('/tournaments/:id', requireAuth, route(req => {
+    const t = T.getT(req.params.id);
+    T.assertManage(t, req.user);
+    return { tournament: T.detail(T.updateTournament(t, req.body || {}), req.user) };
+}));
 
-router.delete('/tournaments/:id', requireRole('admin'), route(req => {
-    T.deleteTournament(T.getT(req.params.id));
+router.delete('/tournaments/:id', requireAuth, route(req => {
+    const t = T.getT(req.params.id);
+    T.assertManage(t, req.user);
+    T.deleteTournament(t);
     return { ok: true };
 }));
 
 router.post('/tournaments/:id/:action', requireAuth, route(req => {
     const t = T.getT(req.params.id);
-    const admin = hasRole(req.user, 'admin');
     const b = req.body || {};
+    const manage = () => T.assertManage(t, req.user);
     switch (req.params.action) {
         case 'register': T.register(t, req.user, { teamId: b.teamId, solo: Boolean(b.solo) }); break;
         case 'withdraw': T.withdraw(t, req.user); break;
         case 'checkin': T.checkin(t, req.user); break;
-        case 'publish': if (!admin) throw new HttpError(403, 'Admins only'); T.publish(t); break;
-        case 'start': if (!admin) throw new HttpError(403, 'Admins only'); T.startTournament(t); break;
-        case 'cancel': if (!admin) throw new HttpError(403, 'Admins only'); T.cancelTournament(t, String(b.reason || 'Cancelled by an organizer').slice(0, 200)); break;
+        case 'publish': manage(); T.publish(t); break;
+        case 'start': manage(); T.startTournament(t); break;
+        case 'cancel': manage(); T.cancelTournament(t, String(b.reason || 'Cancelled by an admin').slice(0, 200)); break;
+        case 'staff': T.setStaff(t, b.userIds, req.user); break;
+        case 'force-join': T.forceJoin(t, req.user, { userId: b.userId, teamId: b.teamId }); break;
+        case 'bots': T.addBots(t, req.user, b.count); break;
         default: throw new HttpError(404, 'Unknown action');
     }
     return { tournament: T.detail(t, req.user) };
 }));
 
-router.post('/tournaments/:id/entries/:entryId/:action', requireRole('admin'), route(req => {
+router.post('/tournaments/:id/entries/:entryId/:action', requireAuth, route(req => {
     const t = T.getT(req.params.id);
+    T.assertManage(t, req.user);
     if (req.params.action === 'remove') T.removeEntry(t, req.params.entryId);
     else if (req.params.action === 'dq') T.disqualify(t, req.params.entryId, req.user, req.body && req.body.reason);
     else throw new HttpError(404, 'Unknown action');
@@ -94,10 +105,13 @@ router.post('/matches/:id/:action', requireAuth, route(req => {
         case 'undo': T.undoDuel(m, u); break;
         case 'forfeit': T.refForfeit(m, u, b.side, b.reason); break;
         case 'reschedule': T.reschedule(m, u, b.at); break;
-        case 'reopen':
-            if (!hasRole(u, 'admin') && m.refId !== u.id) throw new HttpError(403, 'Only admins or the match referee can reopen a result');
+        case 'reopen': {
+            const t = T.getT(m.tournamentId);
+            if (!T.isStaffOf(u, t)) throw new HttpError(403, "Only this tournament's admins can reopen a result");
+            if (T.sideOfUser(t, m, u.id) >= 0) throw new HttpError(403, "You can't reopen your own match");
             T.reopenMatch(m, u);
             break;
+        }
         default: throw new HttpError(404, 'Unknown action');
     }
     return { match: T.matchDetail(m, u) };
@@ -105,14 +119,14 @@ router.post('/matches/:id/:action', requireAuth, route(req => {
 
 router.get('/me/matches', requireAuth, route(req => ({ matches: T.matchesForUser(req.user.id) })));
 
-router.get('/ref/queue', requireRole('ref'), route(req => ({
-    matches: T.refQueue().map(m => ({ ...m, canRef: T.sideOfUser(db.data.tournaments[m.tournament.id], db.data.matches[m.id], req.user.id) < 0 })),
+router.get('/ref/queue', requireRole('admin'), route(req => ({
+    matches: T.refQueue(req.user).map(m => ({ ...m, canRef: T.sideOfUser(db.data.tournaments[m.tournament.id], db.data.matches[m.id], req.user.id) < 0 })),
 })));
 
 // ── Leaderboard ─────────────────────────────────────────────────────────────
 function leaderboard(mode, sort, limit = 100) {
     const rows = Object.values(db.data.users)
-        .filter(u => !u.deleted && !u.banned)
+        .filter(u => !u.deleted && !u.banned && !u.isBot)
         .map(u => ({ u, s: u.stats[mode] }))
         .filter(({ s }) => s.matches > 0 || s.rp > 0 || s.tournaments > 0)
         .sort((a, b) => sort === 'rp'
