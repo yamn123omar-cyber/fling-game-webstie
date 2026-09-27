@@ -5,6 +5,7 @@
 // Everything here is best-effort: the site works fine with no Discord config.
 
 const zlib = require('zlib');
+const db = require('./db');
 
 const API = 'https://discord.com/api/v10';
 const BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
@@ -36,8 +37,11 @@ async function discord(method, path, body) {
     throw new Error('Discord rate limited');
 }
 
+// Demo databases (npm run seed) must never overwrite real backups or post in the real server.
+const isDemo = () => Boolean(db.data.meta && db.data.meta.demo);
+
 // ── Backups ─────────────────────────────────────────────────────────────────
-const backupEnabled = () => Boolean(BOT_TOKEN && BACKUP_CHANNEL_ID);
+const backupEnabled = () => Boolean(BOT_TOKEN && BACKUP_CHANNEL_ID) && !isDemo();
 
 async function uploadBackup(dataObj) {
     if (!backupEnabled()) return false;
@@ -71,7 +75,7 @@ async function downloadLatestBackup() {
 
 // ── Announcements ───────────────────────────────────────────────────────────
 function announce(text) {
-    if (!BOT_TOKEN || !RESULTS_CHANNEL_ID) return;
+    if (!BOT_TOKEN || !RESULTS_CHANNEL_ID || isDemo()) return;
     discord('POST', `/channels/${RESULTS_CHANNEL_ID}/messages`, { content: String(text).slice(0, 1990) })
         .catch(e => console.warn('[discord] announce failed:', e.message));
 }
@@ -124,6 +128,7 @@ async function checkLegacyLogin(username, password) {
 
 module.exports = {
     backupEnabled,
+    isDemo,
     uploadBackup,
     downloadLatestBackup,
     announce,

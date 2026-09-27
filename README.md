@@ -18,7 +18,7 @@ npm run seed         # demo players, teams, a finished + a live + open tournamen
 npm start
 ```
 
-Log in as `arena_admin`, `RefRaptor` (referee) or any player such as `NoobSlinger`; the password is `flingflong`. Run `npm run seed -- --force` to wipe and reseed. Don't run the seed on your real server.
+Log in as `arena_admin`, `RefRaptor` (referee) or any player such as `NoobSlinger`; the password is `flingflong`. Run `npm run seed -- --force` to wipe and reseed. Don't run the seed on your real server. Seeded data is flagged as a demo, so it is never backed up to or announced in Discord, even if your `.env` has the Discord settings. Delete the `data/` folder when you're done testing.
 
 ## How it works
 

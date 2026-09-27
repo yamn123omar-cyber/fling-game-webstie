@@ -24,6 +24,7 @@ const chat = require('../server/chat');
 const T = require('../server/tournaments');
 
 db.load();
+db.data.meta.demo = true; // keeps this data out of Discord backups/announcements for good
 const PASSWORD = 'flingflong';
 const hash = auth.hashPassword(PASSWORD);
 let seed = 7;

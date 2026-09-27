@@ -63,6 +63,7 @@ async function boot() {
         }
     }
 
+    if (discord.isDemo()) console.log('[boot] demo database — Discord backups and announcements are switched off');
     const app = createApp();
     const server = app.listen(PORT, () => console.log(`FTAP Arena running on http://localhost:${PORT}`));
 
