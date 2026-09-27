@@ -9,7 +9,7 @@ npm install
 npm start            # http://localhost:3000
 ```
 
-The **first account** you create becomes the admin. Alternatively set `ADMIN_USERNAMES=yourname` before signing up.
+The **first account** you create becomes the admin. On a real deployment set `ADMIN_USERNAMES=yourname` instead: then only those usernames ever become admin automatically. (When old-site accounts are being imported via `DISCORD_GUILD_ID` and `ADMIN_USERNAMES` is empty, only the old owner account `okok_0020` is made admin.) Admins can promote others from the admin panel.
 
 Want to click around with realistic data first?
 
@@ -42,7 +42,7 @@ Copy `.env.example` to `.env`. Everything is optional.
 |---|---|
 | `PORT` | HTTP port (default 3000). |
 | `DATA_DIR` | Where `db.json` is stored (default `./data`). Use a persistent disk in production. |
-| `ADMIN_USERNAMES` | Comma-separated usernames that become admins when they register. |
+| `ADMIN_USERNAMES` | Comma-separated usernames that become admins when they register or first log in. Recommended. |
 | `DISCORD_BOT_TOKEN` | Enables the Discord features below. |
 | `DISCORD_BACKUP_CHANNEL_ID` | Compressed database backup every `BACKUP_INTERVAL_MINUTES` (default 5), and on shutdown. **On startup with an empty disk the latest backup is restored automatically.** Falls back to `DISCORD_CHANNEL_ID`. |
 | `DISCORD_RESULTS_CHANNEL_ID` | Announcements: new tournaments, results, champions. |

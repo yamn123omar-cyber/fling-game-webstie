@@ -11,10 +11,18 @@ const router = express.Router();
 const USERNAME_RE = /^[A-Za-z0-9_.-]{3,24}$/;
 const adminNames = () => (process.env.ADMIN_USERNAMES || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
 
+// The owner account of the previous version of the site.
+const LEGACY_OWNER = 'okok_0020';
+
 function initialRole(username) {
-    if (adminNames().includes(username.toLowerCase())) return 'admin';
-    const anyAdmin = Object.values(db.data.users).some(u => u.role === 'admin' && !u.deleted);
-    return anyAdmin ? 'player' : 'admin'; // the very first account runs the site
+    const name = username.toLowerCase();
+    const list = adminNames();
+    if (list.length) return list.includes(name) ? 'admin' : 'player';
+    if (Object.values(db.data.users).some(u => u.role === 'admin' && !u.deleted)) return 'player';
+    // Fresh database: the first account runs the site — unless old accounts are being
+    // imported, in which case "first to log in" could be anyone, so only the old owner qualifies.
+    if (discord.legacyEnabled()) return name === LEGACY_OWNER ? 'admin' : 'player';
+    return 'admin';
 }
 
 function me(req) {
