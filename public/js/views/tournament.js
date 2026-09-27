@@ -135,7 +135,7 @@ function matchesTab(t) {
         <div class="m-lines" style="margin-bottom:22px">${list.map(m => matchLine(m, { showTournament: false }))}</div>`)}`;
 }
 
-async function registerFlow(t) {
+export async function registerFlow(t) {
     if (t.mode === 'solo') {
         return post(`/tournaments/${t.id}/register`);
     }
@@ -216,9 +216,7 @@ export default {
         const tab = ctx.query.tab || (t.status === 'live' ? 'bracket' : 'overview');
         let stopBracket = null;
         if (tab === 'bracket' && t.matches.length) {
-            stopBracket = mountBracket($('.t-tab', root), t);
-            const sc = $('.ts-scroll', root);
-            if (sc && !ctx._centered) { sc.scrollLeft = (sc.scrollWidth - sc.clientWidth) / 2; ctx._centered = true; }
+            stopBracket = mountBracket($('.t-tab', root));
         }
         let chat = null;
         if (tab === 'chat') {

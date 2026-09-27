@@ -2,7 +2,7 @@ import { html, $, on, renderTokens, time, ago } from './lib.js';
 import { get, post } from './api.js';
 import { store } from './store.js';
 import { route, start, navigate, currentPath } from './router.js';
-import { icon, logoMark } from './icons.js';
+import { icon } from './icons.js';
 import { avatar, popover, closePopover, toast, toastError, empty } from './ui.js';
 
 route('/', () => import('./views/home.js'));
@@ -41,29 +41,21 @@ setTheme(getTheme());
 // ── Sidebar ─────────────────────────────────────────────────────────────
 const actionable = () => store.myMatches.filter(m => m.status === 'live' || m.status === 'ready' || (m.status === 'scheduled' && !m.checkedIn)).length;
 
-function navGroups() {
-    const me = store.me;
+function navItems() {
     const c = store.counts;
-    const groups = [
-        { title: 'Play', items: [
-            { href: '/', label: 'Home', icon: 'home', on: p => p === '/' },
-            { href: '/tournaments', label: 'Tournaments', icon: 'trophy', on: p => p.startsWith('/tournaments') || p.startsWith('/t/') },
-            { href: '/bracket', label: 'Bracket', icon: 'bracket', on: p => p.startsWith('/bracket') },
-            { href: '/matches', label: 'Matches', icon: 'swords', count: actionable(), on: p => p.startsWith('/matches') || p.startsWith('/m/') },
-        ] },
-        { title: 'Friends & teams', items: [
-            { href: '/players', label: 'Friends', icon: 'users', count: c.friendRequests, on: p => p.startsWith('/players') },
-            { href: '/teams', label: 'Team', icon: 'shield', count: c.teamInvites, on: p => p.startsWith('/team') },
-            { href: '/chat', label: 'Chat', icon: 'chat', count: c.chat, on: p => p.startsWith('/chat') },
-        ] },
-        { title: 'Stats', items: [
-            { href: '/leaderboard', label: 'Leaderboard', icon: 'chart', on: p => p.startsWith('/leaderboard') },
-            { href: `/u/${encodeURIComponent(me.username)}`, label: 'Profile', icon: 'user', on: p => p === `/u/${encodeURIComponent(me.username)}` },
-        ] },
+    const items = [
+        { href: '/', label: 'My Stats', on: p => p === '/' },
+        { href: '/players', label: 'Players', count: c.friendRequests, on: p => p.startsWith('/players') || p.startsWith('/u/') },
+        { href: '/teams', label: 'My Team', count: c.teamInvites, on: p => p.startsWith('/team') },
+        { href: '/tournaments', label: 'Tournaments', on: p => p.startsWith('/tournaments') || p.startsWith('/t/') },
+        { href: '/matches', label: 'My Matches', count: actionable(), on: p => p.startsWith('/matches') || p.startsWith('/m/') },
+        { href: '/leaderboard', label: 'Leaderboard', on: p => p.startsWith('/leaderboard') },
+        { href: '/bracket', label: 'Bracket', on: p => p.startsWith('/bracket') },
+        { href: '/chat', label: 'Chat', count: c.chat, on: p => p.startsWith('/chat') },
     ];
-    if (store.isStaff()) groups.push({ title: 'Admin', items: [{ href: '/admin', label: 'Admin', icon: 'whistle', on: p => p.startsWith('/admin') }] });
-    if (store.isOwner()) groups.push({ title: 'Owner', items: [{ href: '/owner', label: 'Owner', icon: 'crown', on: p => p.startsWith('/owner') }] });
-    return groups;
+    if (store.isStaff()) items.push({ href: '/admin', label: 'Admin Panel', on: p => p.startsWith('/admin') });
+    if (store.isOwner()) items.push({ href: '/owner', label: 'Owner Panel', on: p => p.startsWith('/owner') });
+    return items;
 }
 
 function renderSidebar() {
@@ -71,14 +63,7 @@ function renderSidebar() {
     if (!store.me) { el.innerHTML = ''; return; }
     const p = currentPath();
     el.innerHTML = String(html`<nav class="side-nav" aria-label="Main">
-        ${navGroups().map(g => html`<div class="side-group">
-            ${g.items.map(i => html`<a href="${i.href}" class="side-item ${i.on(p) ? 'on' : ''}" ${i.on(p) ? html`aria-current="page"` : ''}>
-                ${icon(i.icon)}<span>${i.label}</span>${i.count ? html`<span class="badge-dot">${i.count}</span>` : ''}</a>`)}
-        </div>`)}
-        <div class="side-foot">
-            <a href="/settings" class="side-item ${p.startsWith('/settings') ? 'on' : ''}">${icon('cog')}<span>Settings</span></a>
-            <button class="side-item" data-act="logout">${icon('logout')}<span>Log out</span></button>
-        </div>
+        ${navItems().map(i => html`<a href="${i.href}" class="side-item ${i.on(p) ? 'on' : ''}" ${i.on(p) ? html`aria-current="page"` : ''}>${i.label}${i.count ? html`<span class="badge-dot">${i.count}</span>` : ''}</a>`)}
     </nav>`);
 }
 
@@ -106,13 +91,14 @@ function renderTopbar() {
     const live = store.connected !== false || !store._everConnected;
     nav.innerHTML = String(html`
         <button class="icon-btn burger" data-act="burger" aria-label="Open menu">${icon('menu')}</button>
-        <a class="logo" href="/" aria-label="Fling Tournament home">${logoMark}<span>FLING <em>TOURNAMENT</em></span></a>
-        ${live ? '' : html`<span class="sync off" title="Reconnecting…"><i></i><span>Reconnecting</span></span>`}
+        <a class="logo" href="/"><span class="bolt">⚡</span><span>FLING TOURNAMENT</span></a>
         <div class="top-right">
+            ${live ? '' : html`<span class="pill off">● Offline</span>`}
             ${nextMatchPill()}
-            <button class="icon-btn" data-act="theme" title="Switch light / dark">${icon(getTheme() === 'light' ? 'moon' : 'sun')}</button>
-            <button class="icon-btn" data-act="notifs" title="Notifications">${icon('bell')}${c.notifications ? html`<span class="badge-dot red">${c.notifications > 99 ? '99+' : c.notifications}</span>` : ''}</button>
-            <button class="me-btn" data-act="me" aria-label="Account menu">${avatar(me, 'sm')}<span class="me-name">${me.displayName}</span>${icon('down', 'muted')}</button>
+            <button class="top-btn" data-act="theme" title="Light / dark">${getTheme() === 'light' ? '🌙' : '☀️'}</button>
+            <button class="top-btn" data-act="notifs" title="Notifications">🔔${c.notifications ? html`<span class="badge-dot red">${c.notifications > 99 ? '99+' : c.notifications}</span>` : ''}</button>
+            <button class="user-pill" data-act="me">${me.displayName}</button>
+            <button class="logout-btn" data-act="logout">Logout</button>
         </div>`);
 }
 

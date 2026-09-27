@@ -1,50 +1,44 @@
-// Home: your next match and the tournaments you can join. Nothing else.
+// My Stats — the first page after logging in, like the old site.
 import { html, time } from '../lib.js';
-import { get } from '../api.js';
 import { store } from '../store.js';
-import { icon } from '../icons.js';
-import { empty } from '../ui.js';
-import { tournamentCard, matchLine } from '../cards.js';
+import { tierName } from '../ui.js';
+
+const TIER_ICON = { Bronze: '🥉', Silver: '🥈', Gold: '🥇', Platinum: '💠', Diamond: '💎', Champion: '👑' };
 
 function nextMatch(m) {
     if (!m) return '';
     const opp = m.entries[1 - m.mySide];
     const soon = m.status === 'scheduled' && Date.now() < new Date(m.scheduledAt).getTime();
-    const when = m.status === 'live' ? html`<span class="status live">Live</span>`
-        : soon ? html`<span class="mono">${time(m.scheduledAt, 'countdown')}</span>`
-        : m.status === 'scheduled' && !m.checkedIn ? html`<b class="accent">Check in now</b>` : html`<span class="dim">Ready</span>`;
-    return html`<a class="card link next-card" href="/m/${m.id}">
-        <span class="eyebrow">Next match</span>
-        <h2 class="display">vs ${opp ? opp.name : 'TBD'}</h2>
-        <div class="next-when">${when}</div>
-        <span class="btn primary">${icon('swords')}Open</span>
-    </a>`;
+    const when = m.status === 'live' ? 'LIVE now'
+        : soon ? html`in <b class="mono">${time(m.scheduledAt, 'countdown')}</b>`
+        : m.status === 'scheduled' && !m.checkedIn ? html`<b>Check in now!</b>` : 'Ready';
+    return html`<a class="next-strip" href="/m/${m.id}">⚔️ <span>Next match vs <b>${opp ? opp.name : 'TBD'}</b> — ${when}</span><span class="go">Open →</span></a>`;
 }
 
 export default {
-    title: 'Home',
-    load: () => get('/home'),
-    render(d) {
-        const me = store.me;
+    title: 'My Stats',
+    render() {
+        const s = store.me.stats;
+        const wins = s.solo.wins + s.duo.wins, losses = s.solo.losses + s.duo.losses;
+        const rate = wins + losses ? `${Math.round((wins / (wins + losses)) * 100)}%` : '—';
+        const elo = s.solo.elo;
+        const tier = tierName(elo);
         const next = store.myMatches.find(x => ['live', 'ready', 'scheduled'].includes(x.status));
-        const list = [...d.upcoming.filter(t => t.myEntry), ...d.upcoming.filter(t => !t.myEntry)].slice(0, 4);
-        return html`<div class="wrap page home">
-            <h1 class="hello display">Hey, ${me.displayName}</h1>
+        return html`<div class="wrap page">
+            <h1 class="view-title">My Stats</h1>
             ${nextMatch(next)}
-            ${d.live.length ? html`<section class="home-block">
-                <div class="section-title"><span class="status live">Live</span></div>
-                <div class="m-lines">${d.live.slice(0, 3).map(m => matchLine(m))}</div>
-            </section>` : ''}
-            <section class="home-block">
-                <div class="section-title">Tournaments<span class="spacer"></span><a class="more" href="/tournaments">All →</a></div>
-                ${list.length ? html`<div class="grid grid-2">${list.map(tournamentCard)}</div>`
-                    : html`<div class="card">${empty('calendar', 'No tournaments yet')}</div>`}
-            </section>
+            <div class="old-stats">
+                <div class="old-stat"><span>Wins</span><b>${wins}</b></div>
+                <div class="old-stat"><span>Losses</span><b>${losses}</b></div>
+                <div class="old-stat"><span>Win rate</span><b>${rate}</b></div>
+                <div class="old-stat"><span>Elo</span><b class="sm">${elo}</b></div>
+                <div class="old-stat"><span>Tournament wins</span><b class="sm">${s.solo.titles + s.duo.titles}</b></div>
+                <div class="old-stat wide"><span>Tier</span><b class="sm">${TIER_ICON[tier] || ''} ${tier}</b></div>
+            </div>
         </div>`;
     },
     mount(root, d, ctx) {
-        ctx.listen('match', () => ctx.reload());
-        ctx.listen('tournament', () => ctx.reload());
         ctx.listen('mymatches', () => ctx.reload());
+        ctx.listen('me', () => ctx.reload());
     },
 };

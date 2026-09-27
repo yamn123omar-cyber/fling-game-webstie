@@ -3,7 +3,6 @@ import { html, $ } from '../lib.js';
 import { post } from '../api.js';
 import { store } from '../store.js';
 import { navigate } from '../router.js';
-import { logoMark } from '../icons.js';
 import { toast } from '../ui.js';
 
 export default {
@@ -15,22 +14,23 @@ export default {
         return html`<div class="gate">
             <div class="glow" aria-hidden="true"><i></i><i></i><i></i></div>
             <div class="gate-card">
-                <a class="logo" href="/login">${logoMark}<span>FLING <em>TOURNAMENT</em></span></a>
+                <div class="gate-brand"><div class="gate-bolt">⚡</div><h1>FLING TOURNAMENT</h1><span>ENTER THE ARENA</span></div>
                 <div class="seg big gate-tabs" role="tablist">
-                    <a href="/login${next}" role="tab" class="${reg ? '' : 'on'}" aria-selected="${reg ? 'false' : 'true'}">Log in</a>
-                    <a href="/register${next}" role="tab" class="${reg ? 'on' : ''}" aria-selected="${reg ? 'true' : 'false'}">Create account</a>
+                    <a href="/login${next}" role="tab" class="${reg ? '' : 'on'}" aria-selected="${reg ? 'false' : 'true'}">Login</a>
+                    <a href="/register${next}" role="tab" class="${reg ? 'on' : ''}" aria-selected="${reg ? 'true' : 'false'}">Register</a>
                 </div>
+                <h2 class="gate-hi">${reg ? 'Create account' : 'Welcome back'}</h2>
                 <form class="auth-form" novalidate>
                     <label class="field"><span>Username</span>
-                        <input class="input" name="username" autocomplete="username" required minlength="3" maxlength="24" placeholder="${reg ? 'Pick a username' : 'Your username'}" autocapitalize="off" spellcheck="false"></label>
+                        <input class="input" name="username" autocomplete="username" required minlength="3" maxlength="24" placeholder="Enter username" autocapitalize="off" spellcheck="false"></label>
                     ${reg ? html`<label class="field"><span>Roblox username <small class="muted">(optional)</small></span>
                         <input class="input" name="roblox" maxlength="20" autocapitalize="off" spellcheck="false"></label>` : ''}
                     <label class="field"><span>Password</span>
-                        <input class="input" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" required placeholder="${reg ? 'At least 6 characters' : 'Your password'}"></label>
+                        <input class="input" name="password" type="password" autocomplete="${reg ? 'new-password' : 'current-password'}" required placeholder="Enter password"></label>
                     ${reg ? html`<label class="field"><span>Confirm password</span>
                         <input class="input" name="confirm" type="password" autocomplete="new-password" required placeholder="Type it again"></label>` : ''}
                     <div class="form-error" role="alert"></div>
-                    <button class="btn primary lg block" type="submit">${reg ? 'Create account' : 'Log in'}</button>
+                    <button class="btn lg block gate-go" type="submit">${reg ? 'Create Account' : 'Login'}</button>
                 </form>
             </div>
         </div>`;
