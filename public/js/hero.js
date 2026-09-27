@@ -24,7 +24,8 @@ const STICKS = [[1, 2], [2, 3], [3, 4], [4, 1], [1, 3], [2, 4], [0, 1], [0, 2], 
 const RADIUS = [0.75, 0.45, 0.45, 0.45, 0.45, 0.45, 0.45, 0.5, 0.5];
 const WORDS = ['FLUNG!', 'YEET!', 'SENT IT!', 'BYE!', 'OOF', 'SPLAT!', 'FLING!'];
 
-export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint = null, game = false } = {}) {
+// ambient: no input at all — an unseen hand flings someone every few seconds.
+export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint = null, game = false, ambient = false } = {}) {
     const ctx = canvas.getContext('2d');
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
     let W = 0, H = 0, dpr = 1, u = 12, floor = 0;
@@ -71,7 +72,7 @@ export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint
         dolls = [];
         const n = game ? (W < 640 ? 3 : 4) : W < 640 ? 3 : W < 1000 ? 4 : 5;
         // On wide screens keep them to the right of the headline.
-        const [from, span] = game ? [landX / W + 0.05, (playR - landX) / W - 0.08] : W > 1000 ? [0.5, 0.46] : [0.06, 0.88];
+        const [from, span] = ambient ? [0.06, 0.88] : game ? [landX / W + 0.05, (playR - landX) / W - 0.08] : W > 1000 ? [0.5, 0.46] : [0.06, 0.88];
         for (let i = 0; i < n; i++) {
             const x = W * (from + span * (i + 0.5) / n) + (Math.random() - 0.5) * u;
             const y = floor - 3.2 * u - Math.random() * u * 3;
@@ -202,8 +203,8 @@ export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint
             d.lastFling = t;
             flings++;
             onFling(flings);
-            if (!reduced) shake = Math.min(10, speed / 350);
-            texts.push({ x: Math.max(60, Math.min(W - 60, x)), y: Math.min(y, floor - 30), text: WORDS[Math.floor(Math.random() * WORDS.length)], life: 1 });
+            if (!reduced && !ambient) shake = Math.min(10, speed / 350);
+            if (!ambient) texts.push({ x: Math.max(60, Math.min(W - 60, x)), y: Math.min(y, floor - 30), text: WORDS[Math.floor(Math.random() * WORDS.length)], life: 1 });
         }
     }
 
@@ -354,14 +355,17 @@ export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint
     }
 
     function ghostFling(t) {
-        if (reduced || grab || t < nextGhost || t - lastInteract < 7000) return;
-        nextGhost = t + 3200 + Math.random() * 2600;
-        const d = dolls[Math.floor(Math.random() * dolls.length)];
+        if (reduced || grab || t < nextGhost || (!ambient && t - lastInteract < 7000)) return;
+        nextGhost = t + (ambient ? 2200 + Math.random() * 1800 : 3200 + Math.random() * 2600);
+        const standing = dolls.filter(x => x.standing);
+        const pool = standing.length ? standing : dolls;
+        const d = pool[Math.floor(Math.random() * pool.length)];
         const i = 0;
         knock(d, t, 1200);
         const dir = game ? -1 : d.pts[0].x < W / 2 ? 1 : -1;
-        const vx = dir * (1600 + Math.random() * 1600);
-        const vy = -(1400 + Math.random() * 900);
+        const power = ambient ? 0.7 : 1;
+        const vx = dir * (1600 + Math.random() * 1600) * power;
+        const vy = -(1400 + Math.random() * 900) * (ambient ? 0.85 : 1);
         const step = 1 / 60 / SUB;
         for (const [k, p] of d.pts.entries()) {
             const m = k === i ? 1.2 : 0.8;
@@ -552,11 +556,13 @@ export function mountHero(canvas, { onFling = () => {}, onScore = () => {}, hint
         const r = canvas.getBoundingClientRect();
         if (nearest(t.clientX - r.left, t.clientY - r.top, Math.max(34, u * 3.2))) e.preventDefault();
     };
-    canvas.addEventListener('touchstart', touchStart, { passive: false });
-    canvas.addEventListener('pointerdown', down);
-    window.addEventListener('pointermove', move, { passive: true });
-    window.addEventListener('pointerup', up);
-    window.addEventListener('pointercancel', up);
+    if (!ambient) {
+        canvas.addEventListener('touchstart', touchStart, { passive: false });
+        canvas.addEventListener('pointerdown', down);
+        window.addEventListener('pointermove', move, { passive: true });
+        window.addEventListener('pointerup', up);
+        window.addEventListener('pointercancel', up);
+    }
 
     resize();
     spawn();

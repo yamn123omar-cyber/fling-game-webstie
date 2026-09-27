@@ -1,15 +1,11 @@
-// Login / create account — the front door. Behind the form is a little FTAP
-// arena: grab the ragdolls, fling them into the water or through the ring.
+// Login / create account — the front door, over a looping FTAP ragdoll animation.
 import { html, $ } from '../lib.js';
 import { post } from '../api.js';
 import { store } from '../store.js';
 import { navigate } from '../router.js';
-import { icon, logoMark } from '../icons.js';
+import { logoMark } from '../icons.js';
 import { toast } from '../ui.js';
 import { mountHero } from '../hero.js';
-
-const bestKey = 'ft-fling-best';
-const readBest = () => { try { return Number(localStorage.getItem(bestKey)) || 0; } catch { return 0; } };
 
 export default {
     auth: false,
@@ -18,12 +14,7 @@ export default {
         const reg = ctx.path === '/register';
         const next = ctx.query.next ? `?next=${encodeURIComponent(ctx.query.next)}` : '';
         return html`<div class="gate">
-            <canvas class="gate-canvas" aria-label="Mini-game: fling the ragdolls into the water"></canvas>
-            <div class="gate-hud" aria-live="polite">
-                <div class="gate-score"><span>Score</span><b class="mono" data-score>0</b></div>
-                <div class="gate-score"><span>Best</span><b class="mono" data-best>${readBest()}</b></div>
-                <p>${icon('grab')}Grab a player and fling them into the <b class="water">water</b> (+1) or through the <b class="ring">ring</b> (+3)</p>
-            </div>
+            <canvas class="gate-canvas" aria-hidden="true"></canvas>
             <div class="gate-card">
                 <a class="logo" href="/login">${logoMark}<span>FLING <em>TOURNAMENT</em></span></a>
                 <p class="dim gate-sub">Fling Things and People tournaments — solo &amp; duo brackets, stats and chat.</p>
@@ -55,22 +46,7 @@ export default {
         const err = $('.form-error', form);
         if (matchMedia('(min-width: 700px)').matches) $('input', form).focus();
 
-        let total = 0;
-        let best = readBest();
-        const scoreEl = $('[data-score]', root), bestEl = $('[data-best]', root);
-        const stop = mountHero($('.gate-canvas', root), {
-            game: true,
-            onScore(pts) {
-                total += pts;
-                scoreEl.textContent = total;
-                scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump');
-                if (total > best) {
-                    best = total;
-                    bestEl.textContent = best;
-                    try { localStorage.setItem(bestKey, String(best)); } catch { /* private mode */ }
-                }
-            },
-        });
+        const stop = mountHero($('.gate-canvas', root), { ambient: true });
 
         form.addEventListener('submit', async e => {
             e.preventDefault();
