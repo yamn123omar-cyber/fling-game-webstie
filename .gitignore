@@ -42,3 +42,6 @@ graphify-out/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Local database (use DATA_DIR in production)
+data/
